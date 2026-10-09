@@ -15,10 +15,10 @@ export default {
     extend: {
       colors: {
         market: {
-          paper: "#fbf8f1",
-          forest: "#20372b",
-          leaf: "#284332",
-          clay: "#d74b30",
+          paper: "#f7f8fc",
+          forest: "#1d2942",
+          leaf: "#293d61",
+          clay: "#4163e8",
           marigold: "#e6bc70",
         },
         border: "hsl(var(--border))",
