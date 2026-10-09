@@ -1,62 +1,171 @@
-import { DemoResponse } from "@shared/api";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  ArrowDown, ArrowRight, Check, Menu, MessageCircle, Minus, Play, Plus,
+  Search, Share2, ShoppingBag, Star, Truck, X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+type Product = {
+  id: number;
+  name: string;
+  subtitle: string;
+  price: number;
+  unit: string;
+  category: string;
+  location: string;
+  image: string;
+  badge?: string;
+  rating: string;
+};
+
+const products: Product[] = [
+  { id: 1, name: "Sun-kissed mangoes", subtitle: "Sweet, juicy & picked at peak ripeness", price: 48, unit: "basket · 6–8 pcs", category: "Fresh harvest", location: "Volta Region, Ghana", image: "https://images.pexels.com/photos/34295172/pexels-photo-34295172.jpeg", badge: "In season", rating: "4.9" },
+  { id: 2, name: "Pure shea butter", subtitle: "Small-batch, unrefined & deeply nourishing", price: 65, unit: "250 g jar", category: "Natural care", location: "Tamale, Ghana", image: "https://images.pexels.com/photos/17596984/pexels-photo-17596984.jpeg", badge: "Best seller", rating: "4.8" },
+  { id: 3, name: "Handwoven market tote", subtitle: "A little piece of Bolga, made by hand", price: 120, unit: "each", category: "Handmade", location: "Bolgatanga, Ghana", image: "https://images.pexels.com/photos/9173943/pexels-photo-9173943.jpeg", rating: "5.0" },
+  { id: 4, name: "Smoky kpakpo shito", subtitle: "The green pepper sauce that goes with everything", price: 38, unit: "200 ml jar", category: "Pantry", location: "Accra, Ghana", image: "https://images.pexels.com/photos/38882159/pexels-photo-38882159.jpeg", badge: "A local fave", rating: "4.9" },
+  { id: 5, name: "Ghana cocoa nibs", subtitle: "Rich, crunchy & straight from the source", price: 52, unit: "180 g pouch", category: "Pantry", location: "Eastern Region, Ghana", image: "https://images.pexels.com/photos/33662924/pexels-photo-33662924.jpeg", rating: "4.8" },
+  { id: 6, name: "Artisan clay bowl", subtitle: "Shaped slowly, finished with earth pigments", price: 145, unit: "each", category: "Handmade", location: "Kumasi, Ghana", image: "https://images.pexels.com/photos/34144284/pexels-photo-34144284.jpeg", rating: "4.9" },
+  { id: 7, name: "Highland Arabica coffee", subtitle: "Smooth, bright & roasted in small batches", price: 90, unit: "250 g bag", category: "Pantry", location: "Ethiopia", image: "https://images.pexels.com/photos/5926957/pexels-photo-5926957.jpeg", badge: "Fresh roast", rating: "4.9" },
+  { id: 8, name: "Ankara table runner", subtitle: "Bold, joyful print sewn by local makers", price: 110, unit: "each · 180 cm", category: "Handmade", location: "Accra, Ghana", image: "https://images.pexels.com/photos/31854096/pexels-photo-31854096.jpeg", rating: "4.7" },
+  { id: 9, name: "Whipped cocoa body butter", subtitle: "A soft, comforting treat for dry skin", price: 78, unit: "200 ml jar", category: "Natural care", location: "Cape Coast, Ghana", image: "https://images.pexels.com/photos/5883921/pexels-photo-5883921.jpeg", rating: "4.8" },
+  { id: 10, name: "Golden sweet pineapples", subtitle: "Sun-ripened, fragrant & ready to share", price: 36, unit: "each", category: "Fresh harvest", location: "Central Region, Ghana", image: "https://images.pexels.com/photos/39648371/pexels-photo-39648371.jpeg", badge: "In season", rating: "4.9" },
+];
+
+const categories = ["Everything", "Fresh harvest", "Pantry", "Natural care", "Handmade"];
+const videoSources: Record<string, string> = {
+  "Fresh harvest": "https://videos.pexels.com/video-files/37210311/15763746_640_360_100fps.mp4",
+  Pantry: "https://videos.pexels.com/video-files/6216453/6216453-sd_360_640_24fps.mp4",
+  "Natural care": "https://videos.pexels.com/video-files/7117543/7117543-sd_426_226_30fps.mp4",
+  Handmade: "https://videos.pexels.com/video-files/8459588/8459588-sd_960_540_30fps.mp4",
+};
+const formatPrice = (amount: number) => `GH₵${amount.toFixed(2)}`;
 
 export default function Index() {
-  const [exampleFromServer, setExampleFromServer] = useState("");
-  // Fetch users on component mount
-  useEffect(() => {
-    fetchDemo();
-  }, []);
+  const [category, setCategory] = useState("Everything");
+  const [search, setSearch] = useState("");
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [chatProduct, setChatProduct] = useState<Product | null>(null);
+  const [message, setMessage] = useState("");
+  const [videoProduct, setVideoProduct] = useState<Product | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("MTN Mobile Money");
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Example of how to fetch data from the server (if needed)
-  const fetchDemo = async () => {
+  const visibleProducts = useMemo(() => products.filter((product) => {
+    const matchesCategory = category === "Everything" || product.category === category;
+    const matchesSearch = `${product.name} ${product.subtitle} ${product.location}`.toLowerCase().includes(search.toLowerCase());
+    return matchesCategory && matchesSearch;
+  }), [category, search]);
+  const cartCount = Object.values(cart).reduce((total, quantity) => total + quantity, 0);
+  const cartTotal = products.reduce((total, product) => total + product.price * (cart[product.id] ?? 0), 0);
+
+  const addToCart = (product: Product) => {
+    setCart((current) => ({ ...current, [product.id]: (current[product.id] ?? 0) + 1 }));
+    toast.success(`${product.name} added to your basket`);
+  };
+
+  const shareProduct = async (product: Product) => {
+    const shareData = { title: product.name, text: `${product.name} — ${formatPrice(product.price)} at Akwaaba Market` };
     try {
-      const response = await fetch("/api/demo");
-      const data = (await response.json()) as DemoResponse;
-      setExampleFromServer(data.message);
-    } catch (error) {
-      console.error("Error fetching hello:", error);
+      if (navigator.share) await navigator.share(shareData);
+      else {
+        await navigator.clipboard.writeText(`${shareData.text} · Shop Akwaaba Market`);
+        toast.success("Product details copied — ready to share");
+      }
+    } catch {
+      toast("Share cancelled");
     }
   };
 
+  const sendMessage = () => {
+    if (!message.trim()) return;
+    toast.success("Your message is ready for the seller", { description: "Seller chat integration can be connected when you’re ready." });
+    setMessage("");
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-      <div className="text-center">
-        {/* TODO: FUSION_GENERATION_APP_PLACEHOLDER replace everything here with the actual app! */}
-        <h1 className="text-2xl font-semibold text-slate-800 flex items-center justify-center gap-3">
-          <svg
-            className="animate-spin h-8 w-8 text-slate-400"
-            viewBox="0 0 50 50"
-          >
-            <circle
-              className="opacity-30"
-              cx="25"
-              cy="25"
-              r="20"
-              stroke="currentColor"
-              strokeWidth="5"
-              fill="none"
-            />
-            <circle
-              className="text-slate-600"
-              cx="25"
-              cy="25"
-              r="20"
-              stroke="currentColor"
-              strokeWidth="5"
-              fill="none"
-              strokeDasharray="100"
-              strokeDashoffset="75"
-            />
-          </svg>
-          Generating your app...
-        </h1>
-        <p className="mt-4 text-slate-600 max-w-md">
-          Watch the chat on the left for updates that might need your attention
-          to finish generating
-        </p>
-        <p className="mt-4 hidden max-w-md">{exampleFromServer}</p>
+    <div className="min-h-screen bg-[#fbf8f1] text-[#20372b]">
+      <div className="bg-[#213b2c] px-4 py-2 text-center text-[11px] font-medium tracking-[0.13em] text-[#f5e9c9] sm:text-xs">
+        GOOD THINGS GROW HERE <span className="mx-2 text-[#e4a44c]">✳</span> Free delivery in Accra on orders over GH₵250
       </div>
+      <header className="sticky top-0 z-30 border-b border-[#e8e0d1] bg-[#fbf8f1]/95 backdrop-blur-md">
+        <div className="mx-auto flex h-[76px] max-w-[1320px] items-center justify-between gap-5 px-5 sm:px-8">
+          <a href="#top" className="flex shrink-0 items-center gap-2.5" aria-label="Akwaaba Market home">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#d74b30] text-[19px] font-black text-[#fff6e5]">A<span className="text-[#f0c35b]">.</span></span>
+            <span className="leading-tight"><span className="block font-serif text-[20px] font-bold tracking-[-0.04em]">akwaaba<span className="text-[#d74b30]">.</span></span><span className="text-[9px] font-bold uppercase tracking-[0.21em] text-[#778174]">Market · Made of Africa</span></span>
+          </a>
+          <nav className="hidden items-center gap-8 text-[13px] font-semibold text-[#465347] md:flex">
+            <a href="#shop" className="transition hover:text-[#d74b30]">Shop all</a>
+            <a href="#shop" onClick={() => setCategory("Fresh harvest")} className="transition hover:text-[#d74b30]">Fresh harvest</a>
+            <a href="#makers" className="transition hover:text-[#d74b30]">Meet our makers</a>
+            <a href="#how-to" className="transition hover:text-[#d74b30]">Stories & tips</a>
+          </nav>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <label className="hidden h-10 items-center gap-2 rounded-full border border-[#e8e0d1] bg-white/70 px-3.5 lg:flex">
+              <Search size={15} className="text-[#8d9689]" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find something lovely" className="w-36 bg-transparent text-xs outline-none placeholder:text-[#9a9d93]" />
+            </label>
+            <button onClick={() => setCartOpen(true)} aria-label={`Open basket, ${cartCount} items`} className="relative grid h-10 w-10 place-items-center rounded-full text-[#314637] transition hover:bg-[#f0eadc]"><ShoppingBag size={19} />{cartCount > 0 && <span className="absolute -right-0.5 -top-0.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#d74b30] px-1 text-[9px] font-bold text-white">{cartCount}</span>}</button>
+            <button onClick={() => setMenuOpen((open) => !open)} className="grid h-10 w-10 place-items-center rounded-full border border-[#e8e0d1] md:hidden" aria-label="Toggle menu">{menuOpen ? <X size={18} /> : <Menu size={18} />}</button>
+          </div>
+        </div>
+        {menuOpen && <nav className="grid gap-1 border-t border-[#e8e0d1] bg-[#fbf8f1] px-6 py-4 text-sm font-semibold md:hidden"><a className="py-2" href="#shop" onClick={() => setMenuOpen(false)}>Shop all</a><a className="py-2" href="#makers" onClick={() => setMenuOpen(false)}>Meet our makers</a><a className="py-2" href="#how-to" onClick={() => setMenuOpen(false)}>Stories & tips</a></nav>}
+      </header>
+
+      <main id="top">
+        <section className="relative overflow-hidden">
+          <div className="mx-auto grid max-w-[1320px] items-center gap-8 px-5 pb-12 pt-10 sm:px-8 sm:pb-16 sm:pt-14 lg:grid-cols-[0.91fr_1.09fr] lg:gap-14 lg:py-[68px]">
+            <div className="relative z-10 max-w-[530px]">
+              <p className="mb-5 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#b45132]"><span className="h-px w-7 bg-[#d74b30]" /> A marketplace with a little more meaning</p>
+              <h1 className="font-serif text-[48px] font-bold leading-[0.99] tracking-[-0.055em] text-[#20372b] sm:text-[64px] lg:text-[70px]">Good things,<br />grown <span className="relative inline-block italic text-[#d74b30]">close to home.<svg className="absolute -bottom-2 left-1 h-3 w-[92%]" viewBox="0 0 240 16" fill="none"><path d="M3 11C66 3 173 3 236 9" stroke="#E4A44C" strokeWidth="5" strokeLinecap="round" /></svg></span></h1>
+              <p className="mt-6 max-w-[430px] text-[15px] leading-[1.85] text-[#677166] sm:text-[16px]">Meet the growers, makers and small-batch goodness of Africa. Thoughtfully sourced, fairly priced, and delivered with care.</p>
+              <div className="mt-8 flex flex-wrap items-center gap-4"><a href="#shop" className="inline-flex h-[50px] items-center gap-3 rounded-full bg-[#d74b30] px-6 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(168,62,39,0.16)] transition hover:-translate-y-0.5 hover:bg-[#bb3e27]">Explore the market <ArrowRight size={16} /></a><a href="#makers" className="inline-flex h-12 items-center gap-2 text-[13px] font-bold text-[#314637]">Our little story <ArrowDown size={14} /></a></div>
+              <div className="mt-10 flex items-center gap-4 border-t border-[#e8e0d1] pt-6"><div className="flex -space-x-2"><span className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#fbf8f1] bg-[#e8b46f] text-sm">🌿</span><span className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#fbf8f1] bg-[#d5a58c] text-sm">🌞</span><span className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#fbf8f1] bg-[#96a68a] text-sm">🍍</span></div><p className="text-[11px] leading-[1.65] text-[#778174]"><b className="text-[#314637]">1,200+ happy homes</b><br />supporting independent African makers</p><span className="ml-auto flex items-center gap-1 text-xs font-bold text-[#334734]"><Star size={13} fill="#e5a644" stroke="#e5a644" /> 4.9 <span className="font-normal text-[#879083]">from our community</span></span></div>
+            </div>
+            <div className="relative mx-auto w-full max-w-[670px] lg:ml-auto">
+              <div className="absolute -right-5 -top-4 h-32 w-32 rounded-full bg-[#e6bc70]/30 blur-2xl sm:-right-7 sm:-top-8 sm:h-52 sm:w-52" />
+              <div className="relative h-[340px] overflow-hidden rounded-[7px_90px_7px_7px] bg-[#e5c58b] sm:h-[460px] sm:rounded-[8px_140px_8px_8px]">
+                <img src="https://images.pexels.com/photos/34295172/pexels-photo-34295172.jpeg" alt="Fresh sun-ripened mangoes at a local market" className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#16281d]/55 via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-white sm:bottom-8 sm:left-8 sm:right-8"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#f0ce88]">Straight from the source</p><p className="mt-1 font-serif text-[23px] font-bold sm:text-[29px]">A little closer to the good stuff.</p></div><span className="hidden rounded-full border border-white/40 px-3 py-2 text-[10px] font-semibold tracking-wide backdrop-blur-sm sm:block">Volta Region, Ghana</span></div>
+              </div>
+              <div className="absolute -bottom-4 left-3 flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-[0_10px_30px_rgba(40,55,39,0.13)] sm:-bottom-5 sm:left-[-24px] sm:px-5 sm:py-4"><span className="grid h-10 w-10 place-items-center rounded-full bg-[#f7edda] text-lg">✺</span><div><p className="text-[11px] font-bold text-[#263d2e]">Grown with care</p><p className="text-[10px] text-[#879083]">Fair for the hands that made it</p></div><span className="ml-2 rounded-full bg-[#e5f0e3] px-2.5 py-1 text-[9px] font-bold text-[#47754d]">GOOD FOR ALL</span></div>
+              <div className="absolute right-[-10px] top-7 grid h-[76px] w-[76px] rotate-12 place-items-center rounded-full bg-[#f1c65f] text-center text-[9px] font-black uppercase leading-[1.3] tracking-[0.11em] text-[#36452d] shadow-md sm:right-[-24px] sm:top-10 sm:h-[94px] sm:w-[94px] sm:text-[10px]">LOCAL<br />LOVE<br /><span className="text-base">✳</span><br />ALWAYS</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-[#eee6d7] bg-[#f5f0e6]">
+          <div className="mx-auto grid max-w-[1320px] grid-cols-2 gap-y-5 px-5 py-5 sm:px-8 md:grid-cols-4 md:gap-0 md:py-6">
+            {[{ icon: <Truck size={18} />, title: "Thoughtful delivery", text: "Across Ghana & beyond" }, { icon: <span className="text-lg">✳</span>, title: "Rooted in community", text: "People-first, always" }, { icon: <span className="text-base font-bold">GH₵</span>, title: "Prices in cedis", text: "Simple, transparent pricing" }, { icon: <span className="text-base">♡</span>, title: "Pay your way", text: "Mobile money & local options" }].map((item) => <div key={item.title} className="flex items-center gap-3 md:justify-center md:border-r md:border-[#e7dece] md:last:border-0"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#fffaf0] text-[#b45132]">{item.icon}</span><span><b className="block text-[11px] text-[#314637] sm:text-xs">{item.title}</b><span className="mt-0.5 block text-[10px] text-[#858a7e] sm:text-[11px]">{item.text}</span></span></div>)}
+          </div>
+        </section>
+
+        <section id="shop" className="mx-auto max-w-[1320px] scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20">
+          <div className="mb-8 flex flex-col justify-between gap-5 sm:mb-10 sm:flex-row sm:items-end"><div><p className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#b45132]">The good things shelf</p><h2 className="font-serif text-[37px] font-bold leading-tight tracking-[-0.045em] text-[#20372b] sm:text-[45px]">Small batch. <span className="italic text-[#b45132]">Big heart.</span></h2><p className="mt-3 max-w-[460px] text-[13px] leading-6 text-[#778174]">Ten lovely finds from the people and places that make this corner of the world so special.</p></div><div className="flex h-10 items-center gap-2 self-start rounded-full border border-[#e5ddcf] bg-white px-3 lg:hidden"><Search size={15} className="text-[#8d9689]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search the market" className="w-36 bg-transparent text-xs outline-none placeholder:text-[#9a9d93]" /></div><a href="#shop" onClick={() => setCategory("Everything")} className="hidden items-center gap-2 pb-1 text-xs font-bold text-[#b45132] sm:flex">See all 10 finds <ArrowRight size={15} /></a></div>
+          <div className="mb-7 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`shrink-0 rounded-full border px-4 py-2.5 text-[11px] font-bold transition ${category === item ? "border-[#284332] bg-[#284332] text-white" : "border-[#e6dfd2] bg-transparent text-[#747e72] hover:border-[#9aa28f] hover:text-[#314637]"}`}>{item}</button>)}</div>
+          {visibleProducts.length ? <div className="grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-9 lg:grid-cols-4 lg:gap-x-6">{visibleProducts.map((product) => <article key={product.id} className="group relative min-w-0"><div className="relative aspect-[0.92] overflow-hidden rounded-[5px_34px_5px_5px] bg-[#eee4d2] sm:rounded-[7px_48px_7px_7px]"><img src={product.image} alt={product.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.045]" />{product.badge && <span className="absolute left-3 top-3 rounded-full bg-[#fbf8f1] px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#51624e] shadow-sm">{product.badge}</span>}<button onClick={() => shareProduct(product)} aria-label={`Share ${product.name}`} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[#536051] shadow-sm transition hover:bg-white hover:text-[#d74b30]"><Share2 size={14} /></button><button onClick={() => setVideoProduct(product)} aria-label={`Watch how to use ${product.name}`} className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[#20372b]/85 px-3 py-2 text-[9px] font-bold text-white backdrop-blur-sm transition hover:bg-[#d74b30]"><Play size={11} fill="currentColor" /> HOW IT’S MADE</button></div><div className="px-0.5 pt-3"><div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a07b42]">{product.category}</span><span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#536051]"><Star size={11} fill="#e5a644" stroke="#e5a644" />{product.rating}</span></div><h3 className="font-serif text-[15px] font-bold leading-[1.2] tracking-[-0.02em] text-[#243a2c] sm:text-[18px]">{product.name}</h3><p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] leading-[1.55] text-[#83877c] sm:text-[11px]">{product.subtitle}</p><p className="mt-1.5 text-[9px] text-[#929489]">{product.location}</p><div className="mt-3 flex items-center justify-between gap-1 border-t border-[#e9e2d7] pt-2.5"><div><span className="font-serif text-[16px] font-bold text-[#243a2c] sm:text-[18px]">{formatPrice(product.price)}</span><span className="ml-1 text-[9px] text-[#99998d]">/{product.unit}</span></div><button onClick={() => addToCart(product)} aria-label={`Add ${product.name} to basket`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#e9eee3] text-[#314637] transition hover:bg-[#d74b30] hover:text-white"><Plus size={16} /></button></div><button onClick={() => setChatProduct(product)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#7c8678] transition hover:text-[#b45132]"><MessageCircle size={12} /> Ask the maker</button></div></article>)}</div> : <div className="rounded-2xl border border-dashed border-[#ddd4c5] px-6 py-14 text-center text-sm text-[#7d857b]">Nothing on this shelf just yet. Try another search or category.</div>}
+        </section>
+
+        <section id="makers" className="scroll-mt-24 bg-[#284332] text-[#fff9ec]">
+          <div className="mx-auto grid max-w-[1320px] gap-9 px-5 py-14 sm:px-8 sm:py-[72px] lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-16"><div className="relative min-h-[270px] overflow-hidden rounded-[5px_72px_5px_5px] bg-[#b77b3d] sm:min-h-[360px]"><img src="https://images.pexels.com/photos/9173943/pexels-photo-9173943.jpeg" alt="Handmade woven goods from independent African artisans" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-90" /><div className="absolute inset-0 bg-gradient-to-t from-[#12251a]/70 via-transparent to-transparent" /><div className="absolute bottom-5 left-5 sm:bottom-7 sm:left-7"><p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[#f2ce85]">Made by hand, meant to be held onto</p><p className="mt-1 font-serif text-[23px] font-bold sm:text-[29px]">Good things have good people behind them.</p></div><span className="absolute right-5 top-5 rounded-full border border-white/50 bg-[#223b2d]/45 px-3 py-2 text-[9px] font-bold tracking-wide text-white backdrop-blur">MEET THE MAKERS</span></div><div className="max-w-[470px]"><p className="mb-4 text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#edbd5b]">A market that gives back</p><h2 className="font-serif text-[38px] font-bold leading-[1.05] tracking-[-0.04em] sm:text-[48px]">Good for your home.<br /><span className="italic text-[#efc56b]">Good for theirs.</span></h2><p className="mt-5 text-[13px] leading-[1.85] text-[#d3d7c8]">Behind every jar, basket and beautiful bite is a person who grew it, gathered it or made it with care. We bring their work a little closer to you — and make sure the good travels both ways.</p><div className="mt-7 grid grid-cols-2 gap-4 border-y border-white/15 py-5"><div><p className="font-serif text-[27px] font-bold text-[#f0c767]">100%</p><p className="mt-1 text-[10px] text-[#c2cbbd]">Real people. Real places.</p></div><div><p className="font-serif text-[27px] font-bold text-[#f0c767]">Fair</p><p className="mt-1 text-[10px] text-[#c2cbbd]">Pricing all the way through.</p></div></div><a href="#shop" className="mt-7 inline-flex items-center gap-2 text-[12px] font-bold text-[#f3cf7b] transition hover:gap-3">Find your new favourite <ArrowRight size={15} /></a></div></div>
+        </section>
+
+        <section id="how-to" className="mx-auto max-w-[1320px] scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20"><div className="mb-8 flex items-end justify-between gap-5"><div><p className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#b45132]">A little know-how goes a long way</p><h2 className="font-serif text-[34px] font-bold tracking-[-0.045em] text-[#20372b] sm:text-[42px]">From our hands <span className="italic text-[#b45132]">to yours.</span></h2></div><button onClick={() => setVideoProduct(products[0])} className="hidden items-center gap-2 pb-1 text-xs font-bold text-[#b45132] sm:flex">Explore all tips <ArrowRight size={14} /></button></div><div className="grid gap-4 sm:grid-cols-3">{[{ title: "The perfect mango, every time", topic: "FRESH HARVEST · 2 MIN", image: products[0].image, product: products[0] }, { title: "A softer skin ritual with shea", topic: "NATURAL CARE · 3 MIN", image: products[1].image, product: products[1] }, { title: "A little something for the table", topic: "MADE BY HAND · 4 MIN", image: products[2].image, product: products[2] }].map((story) => <button key={story.title} onClick={() => setVideoProduct(story.product)} className="group flex items-center gap-4 rounded-xl border border-[#e8e0d1] bg-white/50 p-3 text-left transition hover:border-[#d8cbb5] hover:bg-white sm:block sm:p-3"><div className="relative h-[84px] w-[104px] shrink-0 overflow-hidden rounded-md sm:h-[170px] sm:w-full"><img src={story.image} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><span className="absolute inset-0 grid place-items-center bg-[#20372b]/15"><span className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-[#284332]"><Play size={14} fill="currentColor" /></span></span></div><span className="block py-1 sm:px-1 sm:pt-4"><span className="text-[8px] font-extrabold tracking-[0.15em] text-[#a17b40]">{story.topic}</span><span className="mt-1.5 block font-serif text-[15px] font-bold leading-tight text-[#304432] sm:text-[18px]">{story.title}</span><span className="mt-2 hidden items-center gap-1 text-[10px] font-bold text-[#b45132] sm:flex">Watch the guide <ArrowRight size={12} /></span></span></button>)}</div></section>
+
+        <section className="border-y border-[#e9e2d7] bg-[#f5f0e6]"><div className="mx-auto grid max-w-[1320px] gap-5 px-5 py-8 sm:px-8 md:grid-cols-[1fr_auto] md:items-center"><div><p className="font-serif text-[22px] font-bold text-[#283d2f]">Your way to pay, our pleasure to deliver.</p><p className="mt-1 text-[11px] text-[#778174]">Easy checkout with familiar payment options across Ghana and Africa.</p></div><div className="flex flex-wrap gap-2"><span className="rounded-md border border-[#ded5c5] bg-[#fffaf1] px-3 py-2 text-[10px] font-extrabold text-[#435341]">MTN MoMo</span><span className="rounded-md border border-[#ded5c5] bg-[#fffaf1] px-3 py-2 text-[10px] font-extrabold text-[#435341]">Telecel Cash</span><span className="rounded-md border border-[#ded5c5] bg-[#fffaf1] px-3 py-2 text-[10px] font-extrabold text-[#435341]">AT Money</span><span className="rounded-md border border-[#ded5c5] bg-[#fffaf1] px-3 py-2 text-[10px] font-extrabold text-[#435341]">Visa · Mastercard</span></div></div></section>
+      </main>
+
+      <footer className="bg-[#20372b] text-[#f9f3e7]"><div className="mx-auto grid max-w-[1320px] gap-8 px-5 py-10 sm:px-8 md:grid-cols-[1.3fr_1fr_1fr] md:py-12"><div><a href="#top" className="font-serif text-[21px] font-bold tracking-[-0.04em]">akwaaba<span className="text-[#edb657]">.</span></a><p className="mt-2 max-w-[260px] text-[11px] leading-5 text-[#bbc5b9]">A little more love in every local purchase. Made of Africa, shared with everyone.</p></div><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#e6bd67]">Come on in</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-[#d1d8cd]"><a href="#shop" className="hover:text-white">Shop all</a><a href="#makers" className="hover:text-white">Our makers</a><a href="#how-to" className="hover:text-white">Stories & tips</a></div></div><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#e6bd67]">Find us in the neighbourhood</p><p className="mt-3 text-[11px] text-[#d1d8cd]">Instagram · Facebook · TikTok</p><p className="mt-1 text-[10px] text-[#929f91]">Share the good stuff with someone you love.</p></div></div><div className="border-t border-white/10 px-5 py-4 text-center text-[9px] text-[#96a394]">© 2025 Akwaaba Market · Grown with care in Africa <span className="mx-1.5 text-[#edb657]">✳</span> Prices shown in Ghana cedis</div></footer>
+
+      {chatProduct && <div className="fixed inset-0 z-50 flex justify-end bg-[#15241b]/35 backdrop-blur-[2px]" onClick={() => setChatProduct(null)}><section role="dialog" aria-modal="true" aria-label={`Chat about ${chatProduct.name}`} onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[420px] flex-col bg-[#fbf8f1] shadow-2xl"><div className="flex items-center justify-between border-b border-[#e8e0d1] px-5 py-4"><div className="flex items-center gap-3"><img src={chatProduct.image} alt="" className="h-11 w-11 rounded-lg object-cover" /><div><p className="text-[9px] font-bold uppercase tracking-wider text-[#9b7c4b]">Maker conversation</p><p className="mt-0.5 font-serif text-[16px] font-bold">{chatProduct.name}</p></div></div><button onClick={() => setChatProduct(null)} aria-label="Close chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="flex-1 space-y-4 overflow-y-auto p-5"><div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#eef0e8] p-4 text-[12px] leading-5 text-[#52604e]"><p className="font-bold text-[#314637]">Akwaaba! 👋</p><p className="mt-1">Curious about {chatProduct.name.toLowerCase()}? Send a note to the maker about ingredients, sizing or delivery.</p></div><div className="rounded-xl border border-[#e8e0d1] bg-white p-3"><p className="font-serif text-sm font-bold">{chatProduct.name}</p><p className="mt-1 text-[10px] text-[#858a7e]">{chatProduct.location} · {formatPrice(chatProduct.price)} / {chatProduct.unit}</p></div></div><form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="border-t border-[#e8e0d1] bg-white p-4"><div className="flex items-center gap-2 rounded-full border border-[#e5ddcf] bg-[#fbf8f1] p-1 pl-4"><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask the maker something…" className="min-w-0 flex-1 bg-transparent text-xs outline-none" /><button aria-label="Send message" type="submit" className="grid h-9 w-9 place-items-center rounded-full bg-[#d74b30] text-white"><ArrowRight size={15} /></button></div><p className="mt-2 text-center text-[9px] text-[#a2a397]">Seller messaging can be connected to your preferred chat channel.</p></form></section></div>}
+
+      {videoProduct && <div className="fixed inset-0 z-50 grid place-items-center bg-[#15241b]/70 p-4 backdrop-blur-sm" onClick={() => setVideoProduct(null)}><section role="dialog" aria-modal="true" aria-label={`${videoProduct.name} video guide`} onClick={(event) => event.stopPropagation()} className="w-full max-w-[680px] overflow-hidden rounded-2xl bg-[#fbf8f1] shadow-2xl"><div className="flex items-center justify-between px-5 py-4"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#a17b40]">From our hands to yours</p><h3 className="mt-1 font-serif text-[20px] font-bold">{videoProduct.name}</h3></div><button onClick={() => setVideoProduct(null)} aria-label="Close video" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="aspect-video bg-[#1f3026]"><video controls autoPlay playsInline poster={videoProduct.image} className="h-full w-full object-cover"><source src={videoSources[videoProduct.category]} type="video/mp4" />Your browser does not support video playback.</video></div><div className="px-5 py-4"><p className="text-[12px] leading-5 text-[#6b7569]">A little look at the care behind the good things we share. Want to know more? Ask this product’s maker directly.</p><button onClick={() => { setVideoProduct(null); setChatProduct(videoProduct); }} className="mt-3 inline-flex items-center gap-2 text-[11px] font-bold text-[#b45132]"><MessageCircle size={14} /> Ask the maker <ArrowRight size={13} /></button></div></section></div>}
+
+      {cartOpen && <div className="fixed inset-0 z-50 flex justify-end bg-[#15241b]/40 backdrop-blur-[2px]" onClick={() => setCartOpen(false)}><section role="dialog" aria-modal="true" aria-label="Your basket" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[430px] flex-col bg-[#fbf8f1] shadow-2xl"><div className="flex items-center justify-between border-b border-[#e8e0d1] px-5 py-5"><div><p className="font-serif text-[22px] font-bold">Your basket <span className="text-[#b45132]">({cartCount})</span></p><p className="mt-1 text-[10px] text-[#858a7e]">Good things, almost yours.</p></div><button onClick={() => setCartOpen(false)} aria-label="Close basket" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="flex-1 overflow-y-auto p-5">{cartCount === 0 ? <div className="grid h-full place-items-center text-center"><div><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#f0eadc] text-[#6e806a]"><ShoppingBag size={25} /></span><p className="mt-4 font-serif text-lg font-bold">Your basket is taking a stroll.</p><p className="mt-1 text-xs text-[#858a7e]">Add something lovely from the market.</p><button onClick={() => setCartOpen(false)} className="mt-5 text-xs font-bold text-[#b45132]">Explore the market <ArrowRight className="ml-1 inline" size={13} /></button></div></div> : <div className="space-y-4">{products.filter((product) => cart[product.id]).map((product) => <div key={product.id} className="flex gap-3 border-b border-[#e9e2d7] pb-4"><img src={product.image} alt="" className="h-[76px] w-[76px] rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-serif text-[15px] font-bold">{product.name}</p><p className="mt-1 text-[10px] text-[#858a7e]">{formatPrice(product.price)} · {product.unit}</p><div className="mt-2 flex items-center gap-3"><button onClick={() => setCart((current) => ({ ...current, [product.id]: Math.max(0, (current[product.id] ?? 0) - 1) }))} aria-label={`Remove one ${product.name}`} className="grid h-6 w-6 place-items-center rounded-full border border-[#ddd4c5]"><Minus size={12} /></button><span className="text-xs font-bold">{cart[product.id]}</span><button onClick={() => addToCart(product)} aria-label={`Add one ${product.name}`} className="grid h-6 w-6 place-items-center rounded-full border border-[#ddd4c5]"><Plus size={12} /></button></div></div><p className="font-serif text-sm font-bold">{formatPrice(product.price * cart[product.id])}</p></div>)}</div>}</div>{cartCount > 0 && <div className="border-t border-[#e8e0d1] bg-white p-5"><div className="mb-3 flex justify-between text-sm"><span className="text-[#788075]">Subtotal</span><b className="font-serif text-lg">{formatPrice(cartTotal)}</b></div><p className="mb-4 text-[10px] text-[#858a7e]">Delivery is calculated at checkout.</p><button onClick={() => { setCartOpen(false); setCheckoutOpen(true); }} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d74b30] text-xs font-bold text-white transition hover:bg-[#bb3e27]">Continue to checkout <ArrowRight size={15} /></button><div className="mt-3 flex items-center justify-center gap-1 text-[9px] text-[#879083]"><Check size={12} /> Secure checkout · Mobile money accepted</div></div>}</section></div>}
+
+      {checkoutOpen && <div className="fixed inset-0 z-[60] grid place-items-center bg-[#15241b]/60 p-4 backdrop-blur-sm" onClick={() => setCheckoutOpen(false)}><section role="dialog" aria-modal="true" aria-label="Checkout options" onClick={(event) => event.stopPropagation()} className="w-full max-w-[440px] rounded-2xl bg-[#fbf8f1] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#a17b40]">One last little thing</p><h3 className="mt-1 font-serif text-[25px] font-bold">Choose how to pay</h3></div><button onClick={() => setCheckoutOpen(false)} aria-label="Close checkout" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><p className="mt-2 text-[11px] leading-5 text-[#778174]">Payment options are shown for your convenience. Secure payment processing can be connected to your payment provider.</p><div className="mt-5 space-y-2">{["MTN Mobile Money", "Telecel Cash", "AT Money", "Visa / Mastercard"].map((method) => <button key={method} onClick={() => setPaymentMethod(method)} className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-xs font-bold transition ${paymentMethod === method ? "border-[#648166] bg-[#edf2e8] text-[#314637]" : "border-[#e5ddcf] bg-white text-[#647063]"}`}><span>{method}</span><span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentMethod === method ? "border-[#4c7650] bg-[#4c7650] text-white" : "border-[#c8cbbf]"}`}>{paymentMethod === method && <Check size={11} />}</span></button>)}</div><div className="my-5 flex justify-between border-t border-[#e6dfd2] pt-4 text-sm"><span className="text-[#788075]">Order total</span><b className="font-serif text-lg">{formatPrice(cartTotal)}</b></div><button onClick={() => { setCheckoutOpen(false); toast("Payment provider setup needed", { description: `Connect ${paymentMethod} to enable secure payment collection.` }); }} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d74b30] text-xs font-bold text-white transition hover:bg-[#bb3e27]">Continue with {paymentMethod} <ArrowRight size={14} /></button><p className="mt-3 text-center text-[9px] text-[#96988d]">No payment will be collected in this preview.</p></section></div>}
     </div>
   );
 }
