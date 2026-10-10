@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown, ArrowRight, Check, Menu, MessageCircle, Minus, Play, Plus,
   Search, Share2, ShoppingBag, Star, Truck, X,
@@ -40,12 +40,16 @@ export default function Index() {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [chatProduct, setChatProduct] = useState<Product | null>(null);
   const [message, setMessage] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [chatSending, setChatSending] = useState(false);
   const [videoProduct, setVideoProduct] = useState<Product | null>(null);
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
   const [galleryIndexes, setGalleryIndexes] = useState<Record<number, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("MTN Mobile Money");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const visibleProducts = useMemo(() => products.filter((product) => {
@@ -74,11 +78,83 @@ export default function Index() {
     }
   };
 
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    toast.success("Your message is ready for the seller", { description: "Seller chat integration can be connected when you’re ready." });
-    setMessage("");
+  const sendMessage = async () => {
+    if (!contactName.trim() || !contactEmail.trim() || !message.trim() || !chatProduct || chatSending) return;
+    setChatSending(true);
+    try {
+      const response = await fetch("/api/support/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: contactName, email: contactEmail, product: chatProduct.name, message }),
+      });
+      if (!response.ok) throw new Error("support_delivery_failed");
+      toast.success("Your message was sent", { description: "The store owner can reply to your email." });
+      setMessage("");
+      setChatProduct(null);
+    } catch {
+      toast.error("We couldn’t send your message", { description: "Please try again later or email greatfent1@gmail.com directly." });
+    } finally {
+      setChatSending(false);
+    }
   };
+
+  const startCheckout = async () => {
+    if (!customerEmail.trim() || checkoutLoading || cartCount === 0) return;
+    setCheckoutLoading(true);
+    try {
+      const items = products.filter((product) => cart[product.id] > 0).map((product) => ({ productId: product.id, quantity: cart[product.id] }));
+      const response = await fetch("/api/payments/paystack/initialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: customerEmail, items }),
+      });
+      const data = await response.json() as { authorizationUrl?: string; error?: string };
+      if (!response.ok || !data.authorizationUrl) {
+        toast.error(data.error === "payments_not_configured" ? "Mobile Money checkout isn’t configured yet" : "Couldn’t start checkout", { description: data.error === "payments_not_configured" ? "The store owner needs to connect Paystack first." : "Please try again in a moment." });
+        return;
+      }
+      window.location.assign(data.authorizationUrl);
+    } catch {
+      toast.error("Couldn’t start checkout", { description: "Please try again in a moment." });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "paystack") return;
+    const reference = params.get("reference") ?? params.get("trxref");
+    if (!reference) {
+      toast.error("Payment status could not be checked");
+      return;
+    }
+
+    const verifyPayment = async () => {
+      try {
+        const response = await fetch(`/api/payments/paystack/verify?reference=${encodeURIComponent(reference)}`);
+        const result = await response.json() as { paid?: boolean; recorded?: boolean; orderNumber?: number; notificationSent?: boolean; error?: string };
+        if (result.paid && !result.recorded) {
+          toast.error("Payment received, order needs attention", { description: "Please contact the store with your payment reference so the order can be recorded." });
+        } else if (response.ok && result.paid && result.recorded) {
+          setCart({});
+          setCheckoutOpen(false);
+          const description = result.notificationSent === false
+            ? `Order #${result.orderNumber} is saved, but the owner email notification could not be sent.`
+            : `Order #${result.orderNumber} is saved. Thanks for your order.`;
+          toast.success("Payment received", { description });
+        } else {
+          toast.error("Payment was not confirmed", { description: "Check your Mobile Money prompt or contact the store." });
+        }
+      } catch {
+        toast.error("Payment status could not be checked", { description: "Please contact the store before trying again." });
+      } finally {
+        window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+      }
+    };
+
+    void verifyPayment();
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f7f8fc] text-[#1d2942]">
@@ -155,7 +231,7 @@ export default function Index() {
 
       <footer className="bg-[#1d2942] text-[#f9f3e7]"><div className="mx-auto grid max-w-[1320px] gap-8 px-5 py-10 sm:px-8 md:grid-cols-[1.3fr_1fr_1fr] md:py-12"><div><a href="#top" className="font-serif text-[21px] font-bold tracking-[-0.04em]">akwaaba<span className="text-[#edb657]">.</span></a><p className="mt-2 max-w-[260px] text-[11px] leading-5 text-[#bbc5b9]">A useful mix of home, personal care, handmade and automotive goods for everyday life.</p></div><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#e6bd67]">Come on in</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-[#d1d8cd]"><a href="#shop" className="hover:text-white">Browse products</a><a href="#makers" className="hover:text-white">Why Akwaaba Goods</a><a href="#how-to" className="hover:text-white">Stories & tips</a></div></div><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#e6bd67]">Find us in the neighbourhood</p><p className="mt-3 text-[11px] text-[#d1d8cd]">Instagram · Facebook · TikTok</p><p className="mt-1 text-[10px] text-[#929f91]">Share the good stuff with someone you love.</p></div></div><div className="border-t border-white/10 px-5 py-4 text-center text-[9px] text-[#96a394]">© 2025 Akwaaba Goods · Everyday essentials, all in one place <span className="mx-1.5 text-[#edb657]">✳</span> All product prices shown in Ghana cedis</div></footer>
 
-      {chatProduct && <div className="fixed inset-0 z-50 flex justify-end bg-[#15241b]/35 backdrop-blur-[2px]" onClick={() => setChatProduct(null)}><section role="dialog" aria-modal="true" aria-label={`Chat about ${chatProduct.name}`} onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[420px] flex-col bg-[#f7f8fc] shadow-2xl"><div className="flex items-center justify-between border-b border-[#e1e6ef] px-5 py-4"><div className="flex items-center gap-3"><img src={chatProduct.image} alt="" className="h-11 w-11 rounded-lg object-cover" /><div><p className="text-[9px] font-bold uppercase tracking-wider text-[#9b7c4b]">Product questions</p><p className="mt-0.5 font-serif text-[16px] font-bold">{chatProduct.name}</p></div></div><button onClick={() => setChatProduct(null)} aria-label="Close chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="flex-1 space-y-4 overflow-y-auto p-5"><div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#eef0e8] p-4 text-[12px] leading-5 text-[#52604e]"><p className="font-bold text-[#344768]">Akwaaba! 👋</p><p className="mt-1">Curious about {chatProduct.name.toLowerCase()}? Send a note to the maker about product details, sizing or delivery.</p></div><div className="rounded-xl border border-[#e1e6ef] bg-white p-3"><p className="font-serif text-sm font-bold">{chatProduct.name}</p><p className="mt-1 text-[10px] text-[#858a7e]">{chatProduct.location} · {formatPrice(chatProduct.price)} / {chatProduct.unit}</p></div></div><form onSubmit={(event) => { event.preventDefault(); sendMessage(); }} className="border-t border-[#e1e6ef] bg-white p-4"><div className="flex items-center gap-2 rounded-full border border-[#e5ddcf] bg-[#f7f8fc] p-1 pl-4"><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask the maker something…" className="min-w-0 flex-1 bg-transparent text-xs outline-none" /><button aria-label="Send message" type="submit" className="grid h-9 w-9 place-items-center rounded-full bg-[#4163e8] text-white"><ArrowRight size={15} /></button></div><p className="mt-2 text-center text-[9px] text-[#a2a397]">Seller messaging can be connected to your preferred chat channel.</p></form></section></div>}
+      {chatProduct && <div className="fixed inset-0 z-50 flex justify-end bg-[#15241b]/35 backdrop-blur-[2px]" onClick={() => setChatProduct(null)}><section role="dialog" aria-modal="true" aria-label={`Chat about ${chatProduct.name}`} onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[420px] flex-col bg-[#f7f8fc] shadow-2xl"><div className="flex items-center justify-between border-b border-[#e1e6ef] px-5 py-4"><div className="flex items-center gap-3"><img src={chatProduct.image} alt="" className="h-11 w-11 rounded-lg object-cover" /><div><p className="text-[9px] font-bold uppercase tracking-wider text-[#9b7c4b]">Product questions</p><p className="mt-0.5 font-serif text-[16px] font-bold">{chatProduct.name}</p></div></div><button onClick={() => setChatProduct(null)} aria-label="Close chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="flex-1 space-y-4 overflow-y-auto p-5"><div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#eef0e8] p-4 text-[12px] leading-5 text-[#52604e]"><p className="font-bold text-[#344768]">Akwaaba! 👋</p><p className="mt-1">Curious about {chatProduct.name.toLowerCase()}? Send a note to the maker about product details, sizing or delivery.</p></div><div className="rounded-xl border border-[#e1e6ef] bg-white p-3"><p className="font-serif text-sm font-bold">{chatProduct.name}</p><p className="mt-1 text-[10px] text-[#858a7e]">{chatProduct.location} · {formatPrice(chatProduct.price)} / {chatProduct.unit}</p></div></div><form onSubmit={(event) => { event.preventDefault(); void sendMessage(); }} className="border-t border-[#e1e6ef] bg-white p-4"><div className="mb-3 grid grid-cols-2 gap-2"><input value={contactName} onChange={(event) => setContactName(event.target.value)} required maxLength={100} placeholder="Your name" className="min-w-0 rounded-lg border border-[#e1e6ef] bg-[#f7f8fc] px-3 py-2 text-xs outline-none" /><input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} required maxLength={254} placeholder="Your email" className="min-w-0 rounded-lg border border-[#e1e6ef] bg-[#f7f8fc] px-3 py-2 text-xs outline-none" /></div><div className="flex items-center gap-2 rounded-full border border-[#e5ddcf] bg-[#f7f8fc] p-1 pl-4"><input value={message} onChange={(event) => setMessage(event.target.value)} required maxLength={4000} placeholder="Ask about this product…" className="min-w-0 flex-1 bg-transparent text-xs outline-none" /><button aria-label="Send message" disabled={chatSending} type="submit" className="grid h-9 w-9 place-items-center rounded-full bg-[#4163e8] text-white disabled:opacity-50">{chatSending ? <span className="text-[10px]">…</span> : <ArrowRight size={15} />}</button></div><p className="mt-2 text-center text-[9px] text-[#a2a397]">Messages route to greatfent1@gmail.com after the store’s Resend email credentials are configured.</p></form></section></div>}
 
       {videoProduct && <div className="fixed inset-0 z-50 grid place-items-center bg-[#15241b]/70 p-4 backdrop-blur-sm" onClick={() => setVideoProduct(null)}><section role="dialog" aria-modal="true" aria-label={`${videoProduct.name} video guide`} onClick={(event) => event.stopPropagation()} className="w-full max-w-[680px] overflow-hidden rounded-2xl bg-[#f7f8fc] shadow-2xl"><div className="flex items-center justify-between px-5 py-4"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#a17b40]">{videoProduct.videoLabel ?? "Product guide"}</p><h3 className="mt-1 font-serif text-[20px] font-bold">{videoProduct.name}</h3></div><button onClick={() => setVideoProduct(null)} aria-label="Close video" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="aspect-video bg-[#1f3026]"><video controls autoPlay playsInline poster={videoProduct.gallery?.[galleryIndexes[videoProduct.id] ?? 0] ?? videoProduct.image} className="h-full w-full object-cover"><source src={videoProduct.videoUrl} type="video/mp4" />Your browser does not support video playback.</video></div><div className="px-5 py-4"><p className="text-[12px] leading-5 text-[#6b7569]">{videoProduct.videoLabel?.startsWith("Related") || videoProduct.videoLabel?.startsWith("General") ? "This is a related-use demonstration, not product footage. Check the product details carefully before ordering." : "Product video kept here for convenient viewing. Check the product details carefully before ordering."}</p><button onClick={() => { setVideoProduct(null); setChatProduct(videoProduct); }} className="mt-3 inline-flex items-center gap-2 text-[11px] font-bold text-[#4163e8]"><MessageCircle size={14} /> Ask about this item <ArrowRight size={13} /></button></div></section></div>}
 
@@ -163,7 +239,7 @@ export default function Index() {
 
       {cartOpen && <div className="fixed inset-0 z-50 flex justify-end bg-[#15241b]/40 backdrop-blur-[2px]" onClick={() => setCartOpen(false)}><section role="dialog" aria-modal="true" aria-label="Your basket" onClick={(event) => event.stopPropagation()} className="flex h-full w-full max-w-[430px] flex-col bg-[#f7f8fc] shadow-2xl"><div className="flex items-center justify-between border-b border-[#e1e6ef] px-5 py-5"><div><p className="font-serif text-[22px] font-bold">Your basket <span className="text-[#4163e8]">({cartCount})</span></p><p className="mt-1 text-[10px] text-[#858a7e]">Good things, almost yours.</p></div><button onClick={() => setCartOpen(false)} aria-label="Close basket" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><div className="flex-1 overflow-y-auto p-5">{cartCount === 0 ? <div className="grid h-full place-items-center text-center"><div><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#ebeff6] text-[#6e806a]"><ShoppingBag size={25} /></span><p className="mt-4 font-serif text-lg font-bold">Your basket is taking a stroll.</p><p className="mt-1 text-xs text-[#858a7e]">Add something lovely from the market.</p><button onClick={() => setCartOpen(false)} className="mt-5 text-xs font-bold text-[#4163e8]">Explore all goods <ArrowRight className="ml-1 inline" size={13} /></button></div></div> : <div className="space-y-4">{products.filter((product) => cart[product.id]).map((product) => <div key={product.id} className="flex gap-3 border-b border-[#e9e2d7] pb-4"><img src={product.image} alt="" className="h-[76px] w-[76px] rounded-lg object-cover" /><div className="min-w-0 flex-1"><p className="font-serif text-[15px] font-bold">{product.name}</p><p className="mt-1 text-[10px] text-[#858a7e]">{formatPrice(product.price)} · {product.unit}</p><div className="mt-2 flex items-center gap-3"><button onClick={() => setCart((current) => ({ ...current, [product.id]: Math.max(0, (current[product.id] ?? 0) - 1) }))} aria-label={`Remove one ${product.name}`} className="grid h-6 w-6 place-items-center rounded-full border border-[#ddd4c5]"><Minus size={12} /></button><span className="text-xs font-bold">{cart[product.id]}</span><button onClick={() => addToCart(product)} aria-label={`Add one ${product.name}`} className="grid h-6 w-6 place-items-center rounded-full border border-[#ddd4c5]"><Plus size={12} /></button></div></div><p className="font-serif text-sm font-bold">{formatPrice(product.price * cart[product.id])}</p></div>)}</div>}</div>{cartCount > 0 && <div className="border-t border-[#e1e6ef] bg-white p-5"><div className="mb-3 flex justify-between text-sm"><span className="text-[#788075]">Subtotal</span><b className="font-serif text-lg">{formatPrice(cartTotal)}</b></div><p className="mb-4 text-[10px] text-[#858a7e]">Delivery is calculated at checkout.</p><button onClick={() => { setCartOpen(false); setCheckoutOpen(true); }} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#4163e8] text-xs font-bold text-white transition hover:bg-[#304fc7]">Continue to checkout <ArrowRight size={15} /></button><div className="mt-3 flex items-center justify-center gap-1 text-[9px] text-[#879083]"><Check size={12} /> Secure checkout · Mobile money accepted</div></div>}</section></div>}
 
-      {checkoutOpen && <div className="fixed inset-0 z-[60] grid place-items-center bg-[#15241b]/60 p-4 backdrop-blur-sm" onClick={() => setCheckoutOpen(false)}><section role="dialog" aria-modal="true" aria-label="Checkout options" onClick={(event) => event.stopPropagation()} className="w-full max-w-[440px] rounded-2xl bg-[#f7f8fc] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#a17b40]">One last little thing</p><h3 className="mt-1 font-serif text-[25px] font-bold">Choose how to pay</h3></div><button onClick={() => setCheckoutOpen(false)} aria-label="Close checkout" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><p className="mt-2 text-[11px] leading-5 text-[#778174]">Payment options are shown for your convenience. Secure payment processing can be connected to your payment provider.</p><div className="mt-5 space-y-2">{["MTN Mobile Money", "Telecel Cash", "AT Money", "Visa / Mastercard"].map((method) => <button key={method} onClick={() => setPaymentMethod(method)} className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-xs font-bold transition ${paymentMethod === method ? "border-[#648166] bg-[#edf2e8] text-[#344768]" : "border-[#e5ddcf] bg-white text-[#647063]"}`}><span>{method}</span><span className={`grid h-4 w-4 place-items-center rounded-full border ${paymentMethod === method ? "border-[#4c7650] bg-[#4c7650] text-white" : "border-[#c8cbbf]"}`}>{paymentMethod === method && <Check size={11} />}</span></button>)}</div><div className="my-5 flex justify-between border-t border-[#e6dfd2] pt-4 text-sm"><span className="text-[#788075]">Order total</span><b className="font-serif text-lg">{formatPrice(cartTotal)}</b></div><button onClick={() => { setCheckoutOpen(false); toast("Payment provider setup needed", { description: `Connect ${paymentMethod} to enable secure payment collection.` }); }} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#4163e8] text-xs font-bold text-white transition hover:bg-[#304fc7]">Continue with {paymentMethod} <ArrowRight size={14} /></button><p className="mt-3 text-center text-[9px] text-[#96988d]">No payment will be collected in this preview.</p></section></div>}
+      {checkoutOpen && <div className="fixed inset-0 z-[60] grid place-items-center bg-[#15241b]/60 p-4 backdrop-blur-sm" onClick={() => setCheckoutOpen(false)}><section role="dialog" aria-modal="true" aria-label="Checkout options" onClick={(event) => event.stopPropagation()} className="w-full max-w-[440px] rounded-2xl bg-[#f7f8fc] p-5 shadow-2xl sm:p-7"><div className="flex items-start justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#a17b40]">One last little thing</p><h3 className="mt-1 font-serif text-[25px] font-bold">Choose how to pay</h3></div><button onClick={() => setCheckoutOpen(false)} aria-label="Close checkout" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#eee8dc]"><X size={18} /></button></div><p className="mt-2 text-[11px] leading-5 text-[#778174]">Pay in Ghana cedis with Mobile Money or a bank card through secure Paystack checkout.</p><label className="mt-5 block"><span className="mb-1.5 block text-[10px] font-bold text-[#52604e]">Email for your payment receipt</span><input type="email" required maxLength={254} value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="you@example.com" className="h-11 w-full rounded-lg border border-[#e1e6ef] bg-white px-3 text-xs outline-none focus:border-[#4163e8]" /></label><div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-[#edf1f8] px-3 py-1.5 text-[10px] font-bold text-[#344768]">Mobile Money</span><span className="rounded-full bg-[#edf1f8] px-3 py-1.5 text-[10px] font-bold text-[#344768]">Bank cards</span><span className="rounded-full bg-[#edf1f8] px-3 py-1.5 text-[10px] font-bold text-[#344768]">Paystack secure checkout</span></div><div className="my-5 flex justify-between border-t border-[#e6dfd2] pt-4 text-sm"><span className="text-[#788075]">Order total</span><b className="font-serif text-lg">{formatPrice(cartTotal)}</b></div><button onClick={startCheckout} disabled={checkoutLoading || !customerEmail.trim()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#4163e8] text-xs font-bold text-white transition hover:bg-[#304fc7] disabled:cursor-not-allowed disabled:opacity-50">{checkoutLoading ? "Starting secure checkout…" : "Continue to secure payment"} <ArrowRight size={14} /></button></section></div>}
     </div>
   );
 }
