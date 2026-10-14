@@ -7,7 +7,7 @@ const orderQuerySchema = z.object({
   quantity: z.coerce.number().int().min(1).max(25),
 });
 
-const productDetails: Record<number, { name: string; price: number; unit: string }> = {
+const productDetails: Record<number, { name: string; price: number; unit: string; minimumOrder?: number }> = {
   11: { name: "Automatic ice sphere maker", price: 600, unit: "unit" },
   12: { name: "D1434 Toyota Hiace brake pads", price: 700, unit: "set" },
   13: { name: "Toyota engine oil filter 90915", price: 400, unit: "filter" },
@@ -15,6 +15,10 @@ const productDetails: Record<number, { name: string; price: number; unit: string
   15: { name: "Amber truck warning light", price: 700, unit: "light" },
   16: { name: "Portable cooling & heating fan", price: 800, unit: "unit" },
   17: { name: "49-inch curved gaming monitor", price: 1500, unit: "monitor" },
+  18: { name: "Darkme Easy Bag 2Pcs Lip Combo", price: 70, unit: "piece", minimumOrder: 3 },
+  19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
+  20: { name: "Torlin Swivel-Cord Hair Dryer", price: 480, unit: "unit" },
+  21: { name: "YANAN 800W Low-Temperature Wig Dryer", price: 1800, unit: "piece" },
 };
 
 const normalizePhone = (value: string | undefined) => {
@@ -31,6 +35,10 @@ export const handleWhatsAppOrder: RequestHandler = (req, res) => {
   const product = productDetails[query.data.productId];
   if (!product) {
     res.status(404).json({ error: "product_not_found" });
+    return;
+  }
+  if (query.data.quantity < (product.minimumOrder ?? 1)) {
+    res.status(400).json({ error: "minimum_order_quantity_not_met", minimumQuantity: product.minimumOrder });
     return;
   }
 
