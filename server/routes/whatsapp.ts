@@ -13,7 +13,7 @@ const productDetails: Record<number, { name: string; price: number; unit: string
   13: { name: "Toyota engine oil filter 90915", price: 400, unit: "filter" },
   14: { name: "Automatic magnetic screen curtain", price: 150, unit: "curtain" },
   15: { name: "Amber truck warning light", price: 700, unit: "light" },
-  16: { name: "Portable cooling & heating fan", price: 800, unit: "unit" },
+  16: { name: "Portable Air Conditioner Cooling & Heating", price: 5700, unit: "piece" },
   17: { name: "49-inch curved gaming monitor", price: 1500, unit: "monitor" },
   18: { name: "Darkme Easy Bag 2Pcs Lip Combo", price: 70, unit: "piece", minimumOrder: 3 },
   19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
