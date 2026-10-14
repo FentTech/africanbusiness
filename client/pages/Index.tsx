@@ -132,7 +132,7 @@ export default function Index() {
             <div className="relative mx-auto w-full max-w-[670px] lg:ml-auto">
               <div className="absolute -right-5 -top-4 h-32 w-32 rounded-full bg-[#e6bc70]/30 blur-2xl sm:-right-7 sm:-top-8 sm:h-52 sm:w-52" />
               <div className="relative h-[340px] overflow-hidden rounded-[7px_90px_7px_7px] bg-[#e5c58b] sm:h-[460px] sm:rounded-[8px_140px_8px_8px]">
-                <img src="https://images.pexels.com/photos/6588583/pexels-photo-6588583.jpeg" alt="Bright modern living room with everyday home furnishings" className="h-full w-full object-cover" />
+                <img src="https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg" alt="Bright living room with colorful statement chairs and vibrant contemporary decor" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#16281d]/55 via-transparent to-transparent" />
                 <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between text-white sm:bottom-8 sm:left-8 sm:right-8"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#f0ce88]">Curated for everyday</p><p className="mt-1 font-serif text-[23px] font-bold sm:text-[29px]">Good finds. One easy place.</p></div><span className="hidden rounded-full border border-white/40 px-3 py-2 text-[10px] font-semibold tracking-wide backdrop-blur-sm sm:block">Home · Auto · Everyday</span></div>
               </div>
