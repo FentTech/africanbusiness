@@ -23,7 +23,7 @@ const productDetails: Record<number, { name: string; price: number; unit: string
   23: { name: "Toyota Engine Oil Filter 90915 Series", price: 80, unit: "piece" },
   24: { name: "Toyota Engine Air Filter 17801", price: 85, unit: "piece" },
   25: { name: "Front & Rear Hydraulic Shock Absorber", price: 116.58, unit: "piece" },
-  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 350, unit: "unit" },
+  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 350, unit: "piece" },
 };
 
 const normalizePhone = (value: string | undefined) => {
