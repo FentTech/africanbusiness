@@ -19,6 +19,11 @@ const productDetails: Record<number, { name: string; price: number; unit: string
   19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
   20: { name: "Torlin Swivel-Cord Hair Dryer", price: 480, unit: "unit" },
   21: { name: "YANAN 800W Low-Temperature Wig Dryer", price: 1800, unit: "piece" },
+  22: { name: "Toyota D241 Front Ceramic Brake Pads", price: 450, unit: "piece" },
+  23: { name: "Toyota Engine Oil Filter 90915 Series", price: 80, unit: "piece" },
+  24: { name: "Toyota Engine Air Filter 17801", price: 85, unit: "piece" },
+  25: { name: "Front & Rear Hydraulic Shock Absorber", price: 116.58, unit: "piece" },
+  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 350, unit: "unit" },
 };
 
 const normalizePhone = (value: string | undefined) => {
