@@ -24,6 +24,9 @@ const productDetails: Record<number, { name: string; price: number; maxPrice?: n
   24: { name: "Toyota Engine Air Filter 17801", price: 50, maxPrice: 120, unit: "piece" },
   25: { name: "Front & Rear Hydraulic Shock Absorber", price: 200, maxPrice: 700, unit: "piece" },
   26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 150, maxPrice: 400, unit: "piece" },
+  27: { name: "Oil Filter for Toyota Honda Hunydai Nissan Ford Isuzu Benz Bmw Vw Mazda Volvo Buick Mitsubishi Chevrolet Citroen", price: 30, maxPrice: 90, unit: "piece" },
+  28: { name: "New Air Conditioner Filter Pipe and Box for Hyundai Models Elantra 2017 Accent I10 2009 H100 Genesis Coupe 2012", price: 50, maxPrice: 150, unit: "piece" },
+  29: { name: "Wholesale Suspension Front and Rear Shock Absorbers 4700 for Toyota Cruiser Hyundai KIA SORENTO 2011-13 54650-0W550 335620", price: 300, maxPrice: 1000, unit: "piece" },
 };
 
 const normalizePhone = (value: string | undefined) => {
