@@ -7,7 +7,7 @@ const orderQuerySchema = z.object({
   quantity: z.coerce.number().int().min(1).max(25),
 });
 
-const productDetails: Record<number, { name: string; price: number; unit: string; minimumOrder?: number }> = {
+const productDetails: Record<number, { name: string; price: number; maxPrice?: number; unit: string; minimumOrder?: number }> = {
   11: { name: "Automatic ice sphere maker", price: 600, unit: "unit" },
   12: { name: "D1434 Toyota Hiace brake pads", price: 700, unit: "set" },
   13: { name: "Toyota engine oil filter 90915", price: 400, unit: "filter" },
@@ -19,11 +19,11 @@ const productDetails: Record<number, { name: string; price: number; unit: string
   19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
   20: { name: "Torlin Swivel-Cord Hair Dryer", price: 480, unit: "unit" },
   21: { name: "YANAN 800W Low-Temperature Wig Dryer", price: 1800, unit: "piece" },
-  22: { name: "Toyota D241 Front Ceramic Brake Pads", price: 450, unit: "piece" },
-  23: { name: "Toyota Engine Oil Filter 90915 Series", price: 80, unit: "piece" },
-  24: { name: "Toyota Engine Air Filter 17801", price: 85, unit: "piece" },
-  25: { name: "Front & Rear Hydraulic Shock Absorber", price: 116.58, unit: "piece" },
-  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 350, unit: "piece" },
+  22: { name: "Toyota D241 Front Ceramic Brake Pads", price: 250, maxPrice: 500, unit: "piece" },
+  23: { name: "Toyota Engine Oil Filter 90915 Series", price: 30, maxPrice: 80, unit: "piece" },
+  24: { name: "Toyota Engine Air Filter 17801", price: 50, maxPrice: 120, unit: "piece" },
+  25: { name: "Front & Rear Hydraulic Shock Absorber", price: 200, maxPrice: 700, unit: "piece" },
+  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 150, maxPrice: 400, unit: "piece" },
 };
 
 const normalizePhone = (value: string | undefined) => {
@@ -54,10 +54,13 @@ export const handleWhatsAppOrder: RequestHandler = (req, res) => {
   }
 
   const total = product.price * query.data.quantity;
+  const priceLine = product.maxPrice
+    ? `Price range: GH₵${product.price.toFixed(2)}–GH₵${product.maxPrice.toFixed(2)} per ${product.unit}. Please confirm the exact price and total for the selected variant.`
+    : `Listed total: GH₵${total.toFixed(2)}`;
   const message = [
     "Hello, I would like to order:",
     `${query.data.quantity} × ${product.name} (${product.unit})`,
-    `Listed total: GH₵${total.toFixed(2)}`,
+    priceLine,
     "Please confirm availability and delivery details.",
   ].join("\n");
   const destination = new URL(`https://wa.me/${phone}`);
