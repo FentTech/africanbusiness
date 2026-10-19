@@ -15,7 +15,7 @@ const productDetails: Record<number, { name: string; price: number; maxPrice?: n
   15: { name: "Amber truck warning light", price: 700, unit: "light" },
   16: { name: "Portable Air Conditioner Cooling & Heating", price: 5700, unit: "piece" },
   17: { name: "49-inch curved gaming monitor", price: 1500, unit: "monitor" },
-  18: { name: "Darkme Easy Bag 2Pcs Lip Combo", price: 70, unit: "piece", minimumOrder: 3 },
+  18: { name: "Full Set Front and Rear Air Suspension Shock With ADS for Toyota Land Cruiser Prado J150 GX460 P150 48510-60290 48530-69535", price: 500, maxPrice: 2000, unit: "unit" },
   19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
   20: { name: "Torlin Swivel-Cord Hair Dryer", price: 480, unit: "unit" },
   21: { name: "YANAN 800W Low-Temperature Wig Dryer", price: 1800, unit: "piece" },
@@ -27,6 +27,8 @@ const productDetails: Record<number, { name: string; price: number; maxPrice?: n
   27: { name: "Oil Filter for Toyota Honda Hunydai Nissan Ford Isuzu Benz Bmw Vw Mazda Volvo Buick Mitsubishi Chevrolet Citroen", price: 30, maxPrice: 90, unit: "piece" },
   28: { name: "New Air Conditioner Filter Pipe and Box for Hyundai Models Elantra 2017 Accent I10 2009 H100 Genesis Coupe 2012", price: 50, maxPrice: 150, unit: "piece" },
   29: { name: "Wholesale Suspension Front and Rear Shock Absorbers 4700 for Toyota Cruiser Hyundai KIA SORENTO 2011-13 54650-0W550 335620", price: 300, maxPrice: 1000, unit: "piece" },
+  30: { name: "17801-51020 Is Suitable for Toyota", price: 100, maxPrice: 300, unit: "unit" },
+  31: { name: "46B24 RS 6-QW-52min300 SMF Car Battery for Toyota Honda Suzuki", price: 1200, maxPrice: 3500, unit: "unit" },
 };
 
 const normalizePhone = (value: string | undefined) => {
