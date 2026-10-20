@@ -104,7 +104,7 @@ export default function AdminDashboard() {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: adminEmail,
-        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/admin` },
+        options: { shouldCreateUser: false, emailRedirectTo: `${import.meta.env.VITE_SITE_URL || window.location.origin}/admin` },
       });
       if (!error) {
         setCooldownSeconds(60);
@@ -113,9 +113,12 @@ export default function AdminDashboard() {
       }
       const retryAfter = error.message.match(/after\s+(\d+)\s+seconds?/i);
       if (error.status === 429 || retryAfter) {
-        const seconds = retryAfter ? Number(retryAfter[1]) : 60;
+        const quotaExceeded = error.message.toLowerCase().includes("email rate limit exceeded");
+        const seconds = quotaExceeded ? 3600 : retryAfter ? Number(retryAfter[1]) : 60;
         setCooldownSeconds(seconds);
-        setMessage(`Supabase is temporarily limiting email requests. Wait ${seconds} seconds, then retry. Check your inbox for the link already sent.`);
+        setMessage(quotaExceeded
+          ? "Supabase’s email sending quota has been reached. Wait for the cooldown, or configure custom SMTP in Supabase Authentication settings."
+          : `Supabase is temporarily limiting email requests. Wait ${seconds} seconds, then retry. Check your inbox for the link already sent.`);
       } else {
         setMessage("Could not send the sign-in link. Please check the email provider settings and try again.");
       }
