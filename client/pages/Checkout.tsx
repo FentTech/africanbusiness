@@ -25,7 +25,7 @@ export default function Checkout() {
   const cartProducts = useMemo(() => cart.map((line) => ({
     ...line,
     product: products.find((product) => product.id === line.productId),
-  })).filter((line) => line.product), [cart]);
+  })).filter((line) => line.product), [cart, products]);
   const minimumSubtotal = cartProducts.reduce((total, line) => total + line.product!.price * line.quantity, 0);
 
   const updateQuantity = (productId: number, quantity: number) => {

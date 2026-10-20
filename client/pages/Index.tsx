@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown, ArrowRight, Menu, MessageCircle, Play,
-  Search, Share2, ShoppingBag, Star, Truck, X,
+  Search, Share2, ShieldCheck, ShoppingBag, Star, Truck, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -118,6 +118,7 @@ export default function Index() {
             <a href="#how-to" className="transition hover:text-[#4163e8]">Stories & tips</a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
+            <Link to="/admin" aria-label="Owner admin sign in" title="Owner admin sign in" className="inline-flex h-10 items-center gap-1.5 rounded-full border border-[#e1e6ef] bg-white px-3 text-xs font-semibold text-[#344768] transition hover:border-[#4163e8] hover:text-[#4163e8]"><ShieldCheck size={15} /><span className="hidden sm:inline">Admin</span></Link>
             <Link to="/checkout" className="relative grid h-10 w-10 place-items-center rounded-full border border-[#e1e6ef] bg-white" aria-label={`Cart, ${cartCount} items`}><ShoppingBag size={17} />{cartCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#4163e8] px-1 text-[10px] font-bold text-white">{cartCount}</span>}</Link>
             <label className="hidden h-10 items-center gap-2 rounded-full border border-[#e1e6ef] bg-white/70 px-3.5 lg:flex">
               <Search size={15} className="text-[#8d9689]" />
@@ -126,7 +127,7 @@ export default function Index() {
             <button onClick={() => setMenuOpen((open) => !open)} className="grid h-10 w-10 place-items-center rounded-full border border-[#e1e6ef] md:hidden" aria-label="Toggle menu">{menuOpen ? <X size={18} /> : <Menu size={18} />}</button>
           </div>
         </div>
-        {menuOpen && <nav className="grid gap-1 border-t border-[#e1e6ef] bg-[#f7f8fc] px-6 py-4 text-sm font-semibold md:hidden"><a className="py-2" href="#shop" onClick={() => setMenuOpen(false)}>Browse products</a><a className="py-2" href="#makers" onClick={() => setMenuOpen(false)}>Why Akwaaba Goods</a><a className="py-2" href="#how-to" onClick={() => setMenuOpen(false)}>Stories & tips</a></nav>}
+        {menuOpen && <nav className="grid gap-1 border-t border-[#e1e6ef] bg-[#f7f8fc] px-6 py-4 text-sm font-semibold md:hidden"><a className="py-2" href="#shop" onClick={() => setMenuOpen(false)}>Browse products</a><a className="py-2" href="#makers" onClick={() => setMenuOpen(false)}>Why Akwaaba Goods</a><a className="py-2" href="#how-to" onClick={() => setMenuOpen(false)}>Stories & tips</a><Link className="py-2 text-[#4163e8]" to="/admin" onClick={() => setMenuOpen(false)}>Owner admin sign in</Link></nav>}
       </header>
 
       <main id="top">
