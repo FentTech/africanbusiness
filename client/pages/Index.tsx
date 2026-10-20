@@ -1,17 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown, ArrowRight, Menu, MessageCircle, Play,
   Search, Share2, Star, Truck, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { products, type Product } from "@shared/productCatalog";
+import { products as seedProducts, type Product } from "@shared/productCatalog";
+import { supabase } from "@/lib/supabase";
 
 const categories = ["Everything", "Home & living", "Electronics", "Auto parts", "Beauty & personal care"];
 const formatPrice = (amount: number) => `GH₵${amount.toFixed(2)}`;
 const formatProductPrice = (product: Pick<Product, "price" | "maxPrice">) => product.maxPrice ? `${formatPrice(product.price)}–${formatPrice(product.maxPrice)}` : formatPrice(product.price);
 
 export default function Index() {
+  const [products, setProducts] = useState<Product[]>(seedProducts);
   const [category, setCategory] = useState("Everything");
   const [search, setSearch] = useState("");
   const [whatsappProduct, setWhatsappProduct] = useState<Product | null>(null);
@@ -24,6 +26,38 @@ export default function Index() {
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
   const [galleryIndexes, setGalleryIndexes] = useState<Record<number, number>>({});
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      const { data, error } = await supabase
+        .from("store_products")
+        .select("*")
+        .eq("active", true)
+        .order("id");
+      if (error) {
+        toast.error("Could not refresh the product catalog");
+        return;
+      }
+      setProducts(data.map((product) => ({
+        id: product.id,
+        name: product.name,
+        subtitle: product.subtitle,
+        price: Number(product.price_ghs),
+        maxPrice: product.max_price_ghs === null ? undefined : Number(product.max_price_ghs),
+        unit: product.unit,
+        minimumOrder: product.minimum_order,
+        category: product.category,
+        location: product.location,
+        image: product.image_url,
+        gallery: product.gallery_urls.length ? product.gallery_urls : undefined,
+        videoUrl: product.video_url ?? "",
+        videoLabel: product.video_label ?? undefined,
+        badge: product.badge ?? undefined,
+        rating: product.rating ?? undefined,
+      })));
+    };
+    void loadProducts();
+  }, []);
 
   const visibleProducts = useMemo(() => products.filter((product) => {
     const matchesCategory = category === "Everything" || product.category === category;
