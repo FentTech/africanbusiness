@@ -21,9 +21,17 @@ export default function AdminDashboard() {
   const [authorized, setAuthorized] = useState(false);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState("");
+  const [sendingLoginLink, setSendingLoginLink] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (cooldownSeconds === 0) return;
+    const timeout = window.setTimeout(() => setCooldownSeconds(cooldownSeconds - 1), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [cooldownSeconds]);
 
   const loadDashboard = useCallback(async () => {
     const { data: productRows, error: productError } = await supabase
@@ -87,15 +95,35 @@ export default function AdminDashboard() {
 
   const sendLoginLink = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (sendingLoginLink || cooldownSeconds > 0) return;
     if (email.trim().toLowerCase() !== adminEmail) {
       setMessage("This email is not on the store-admin allowlist.");
       return;
     }
-    const { error } = await supabase.auth.signInWithOtp({
-      email: adminEmail,
-      options: { emailRedirectTo: `${window.location.origin}/admin` },
-    });
-    setMessage(error ? "Could not send the sign-in link. Please try again." : "Check the admin inbox for a secure sign-in link.");
+    setSendingLoginLink(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: adminEmail,
+        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/admin` },
+      });
+      if (!error) {
+        setCooldownSeconds(60);
+        setMessage(`Sign-in email sent to ${adminEmail}. Check your inbox and spam folder. Wait 60 seconds before requesting another link.`);
+        return;
+      }
+      const retryAfter = error.message.match(/after\s+(\d+)\s+seconds?/i);
+      if (error.status === 429 || retryAfter) {
+        const seconds = retryAfter ? Number(retryAfter[1]) : 60;
+        setCooldownSeconds(seconds);
+        setMessage(`Supabase is temporarily limiting email requests. Wait ${seconds} seconds, then retry. Check your inbox for the link already sent.`);
+      } else {
+        setMessage("Could not send the sign-in link. Please check the email provider settings and try again.");
+      }
+    } catch {
+      setMessage("Could not reach Supabase Auth. Check your connection and try again.");
+    } finally {
+      setSendingLoginLink(false);
+    }
   };
 
   const saveProduct = async (product: AdminProduct) => {
@@ -172,7 +200,7 @@ export default function AdminDashboard() {
           <form onSubmit={sendLoginLink} className="mt-8 max-w-md space-y-4 rounded-2xl border border-[#e1e6ef] bg-white p-6">
             <h2 className="font-serif text-xl font-bold">Admin sign in</h2>
             <label className="block text-sm font-semibold">Admin email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5" /></label>
-            <button className="w-full rounded-full bg-[#4163e8] px-5 py-3 text-sm font-bold text-white">Email me a secure sign-in link</button>
+            <button disabled={sendingLoginLink || cooldownSeconds > 0} className="w-full rounded-full bg-[#4163e8] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{sendingLoginLink ? "Sending sign-in link…" : cooldownSeconds > 0 ? `Resend available in ${cooldownSeconds}s` : "Email me a secure sign-in link"}</button>
           </form>
         ) : !authorized ? <p className="mt-8 rounded-xl border border-[#e1e6ef] bg-white p-6">This signed-in account is not authorized to manage the store.</p> : (
           <div className="mt-8 space-y-10">
