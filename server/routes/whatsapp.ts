@@ -1,35 +1,12 @@
 import type { RequestHandler } from "express";
 import { z } from "zod";
+import { products } from "../../shared/productCatalog";
 
 const orderQuerySchema = z.object({
   contact: z.enum(["1", "2"]),
   productId: z.coerce.number().int(),
   quantity: z.coerce.number().int().min(1).max(25),
 });
-
-const productDetails: Record<number, { name: string; price: number; maxPrice?: number; unit: string; minimumOrder?: number }> = {
-  11: { name: "Automatic ice sphere maker", price: 600, unit: "unit" },
-  12: { name: "D1434 Toyota Hiace brake pads", price: 700, unit: "set" },
-  13: { name: "Toyota engine oil filter 90915", price: 400, unit: "filter" },
-  14: { name: "Automatic magnetic screen curtain", price: 150, unit: "curtain" },
-  15: { name: "Amber truck warning light", price: 700, unit: "light" },
-  16: { name: "Portable Air Conditioner Cooling & Heating", price: 5700, unit: "piece" },
-  17: { name: "49-inch curved gaming monitor", price: 1500, unit: "monitor" },
-  18: { name: "Full Set Front and Rear Air Suspension Shock With ADS for Toyota Land Cruiser Prado J150 GX460 P150 48510-60290 48530-69535", price: 500, maxPrice: 2000, unit: "unit" },
-  19: { name: "HD Lace Front Human Hair Wig", price: 500, unit: "piece" },
-  20: { name: "Torlin Swivel-Cord Hair Dryer", price: 480, unit: "unit" },
-  21: { name: "YANAN 800W Low-Temperature Wig Dryer", price: 1800, unit: "piece" },
-  22: { name: "Toyota D241 Front Ceramic Brake Pads", price: 250, maxPrice: 500, unit: "piece" },
-  23: { name: "Toyota Engine Oil Filter 90915 Series", price: 30, maxPrice: 80, unit: "piece" },
-  24: { name: "Toyota Engine Air Filter 17801", price: 50, maxPrice: 120, unit: "piece" },
-  25: { name: "Front & Rear Hydraulic Shock Absorber", price: 200, maxPrice: 700, unit: "piece" },
-  26: { name: "Toyota Corolla Rear Wheel Hub Unit", price: 150, maxPrice: 400, unit: "piece" },
-  27: { name: "Oil Filter for Toyota Honda Hunydai Nissan Ford Isuzu Benz Bmw Vw Mazda Volvo Buick Mitsubishi Chevrolet Citroen", price: 30, maxPrice: 90, unit: "piece" },
-  28: { name: "New Air Conditioner Filter Pipe and Box for Hyundai Models Elantra 2017 Accent I10 2009 H100 Genesis Coupe 2012", price: 50, maxPrice: 150, unit: "piece" },
-  29: { name: "Wholesale Suspension Front and Rear Shock Absorbers 4700 for Toyota Cruiser Hyundai KIA SORENTO 2011-13 54650-0W550 335620", price: 300, maxPrice: 1000, unit: "piece" },
-  30: { name: "17801-51020 Is Suitable for Toyota", price: 100, maxPrice: 300, unit: "unit" },
-  31: { name: "46B24 RS 6-QW-52min300 SMF Car Battery for Toyota Honda Suzuki", price: 1200, maxPrice: 3500, unit: "unit" },
-};
 
 const normalizePhone = (value: string | undefined) => {
   if (!value || !/^(?:\+|00)?[1-9]\d{7,14}$/.test(value)) return null;
@@ -42,7 +19,7 @@ export const handleWhatsAppOrder: RequestHandler = (req, res) => {
     res.status(400).json({ error: "invalid_order_request" });
     return;
   }
-  const product = productDetails[query.data.productId];
+  const product = products.find(({ id }) => id === query.data.productId);
   if (!product) {
     res.status(404).json({ error: "product_not_found" });
     return;

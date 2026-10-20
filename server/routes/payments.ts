@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { RequestHandler } from "express";
 import { z } from "zod";
 import { recordPaidOrder, sendOrderNotification } from "../orders";
+import { products } from "../../shared/productCatalog";
 
 const checkoutSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -11,25 +12,7 @@ const checkoutSchema = z.object({
   })).min(1).max(20),
 });
 
-const productPricesGhs: Record<number, number> = {
-  11: 600,
-  12: 700,
-  13: 400,
-  14: 150,
-  15: 700,
-  16: 800,
-  17: 1500,
-};
-
-const productNames: Record<number, string> = {
-  11: "Ice sphere maker",
-  12: "Toyota brake pads",
-  13: "Toyota engine oil filter",
-  14: "Automatic magnetic screen curtain",
-  15: "Amber truck warning lights",
-  16: "Cooling and heating fan",
-  17: "Gaming monitor",
-};
+const productById = new Map(products.map((product) => [product.id, product]));
 
 const paystackTransactionSchema = z.object({
   status: z.boolean(),
@@ -54,13 +37,16 @@ export const handleInitializePayment: RequestHandler = async (req, res) => {
   }
 
   const items = parsed.data.items;
-  if (items.some(({ productId }) => productPricesGhs[productId] === undefined)) {
-    res.status(400).json({ error: "unknown_product" });
+  if (items.some(({ productId }) => {
+    const product = productById.get(productId);
+    return !product || product.maxPrice !== undefined;
+  })) {
+    res.status(400).json({ error: "unknown_or_variable_price_product" });
     return;
   }
 
   const amount = items.reduce(
-    (total, { productId, quantity }) => total + productPricesGhs[productId] * quantity * 100,
+    (total, { productId, quantity }) => total + productById.get(productId)!.price * quantity * 100,
     0,
   );
 
@@ -124,8 +110,11 @@ const verificationSchema = z.object({ status: z.boolean(), data: verifiedTransac
 const persistSuccessfulTransaction = async (transaction: z.infer<typeof verifiedTransactionSchema>) => {
   if (transaction.status !== "success" || transaction.currency !== "GHS") return { paid: false as const };
   const items = transaction.metadata.order_items;
-  if (items.some(({ productId }) => productPricesGhs[productId] === undefined)) throw new Error("unknown_order_product");
-  const expectedAmount = items.reduce((total, item) => total + productPricesGhs[item.productId] * item.quantity * 100, 0);
+  if (items.some(({ productId }) => {
+    const product = productById.get(productId);
+    return !product || product.maxPrice !== undefined;
+  })) throw new Error("unknown_or_variable_price_order_product");
+  const expectedAmount = items.reduce((total, item) => total + productById.get(item.productId)!.price * item.quantity * 100, 0);
   if (transaction.amount !== expectedAmount) throw new Error("payment_order_mismatch");
 
   const recorded = await recordPaidOrder({
@@ -133,7 +122,7 @@ const persistSuccessfulTransaction = async (transaction: z.infer<typeof verified
     email: transaction.metadata.customer_email,
     amount: transaction.amount,
     currency: "GHS",
-    items: items.map((item) => ({ ...item, productName: productNames[item.productId] })),
+    items: items.map((item) => ({ ...item, productName: productById.get(item.productId)!.name })),
   });
   const notificationSent = recorded.created ? await sendOrderNotification(recorded.order) : null;
   return { paid: true as const, orderNumber: recorded.order.orderNumber, notificationSent };
