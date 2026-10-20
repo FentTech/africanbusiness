@@ -8,9 +8,69 @@ const orderQuerySchema = z.object({
   quantity: z.coerce.number().int().min(1).max(25),
 });
 
+const cartOrderSchema = z.object({
+  contact: z.enum(["1", "2"]),
+  orderNumber: z.number().int().positive(),
+  fullName: z.string().trim().min(1).max(100),
+  phone: z.string().trim().min(8).max(24),
+  email: z.string().email().max(254).nullable(),
+  deliveryArea: z.string().trim().min(1).max(100),
+  deliveryAddress: z.string().trim().min(5).max(500),
+  customerNote: z.string().max(1000),
+  items: z.array(z.object({
+    productName: z.string().min(1).max(160),
+    quantity: z.number().int().min(1).max(25),
+    minPriceGhs: z.number().nonnegative(),
+    maxPriceGhs: z.number().nonnegative().nullable(),
+  })).min(1).max(20),
+});
+
 const normalizePhone = (value: string | undefined) => {
   if (!value || !/^(?:\+|00)?[1-9]\d{7,14}$/.test(value)) return null;
   return value.replace(/^\+/, "").replace(/^00/, "");
+};
+
+export const handleWhatsAppCartOrder: RequestHandler = (req, res) => {
+  let payload = req.body;
+  if (typeof req.body?.payload === "string") {
+    try {
+      payload = { ...JSON.parse(req.body.payload), contact: req.body.contact };
+    } catch {
+      res.status(400).json({ error: "invalid_cart_order" });
+      return;
+    }
+  }
+  const parsed = cartOrderSchema.safeParse(payload);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_cart_order" });
+    return;
+  }
+
+  const phone = normalizePhone(process.env[`WHATSAPP_ORDER_NUMBER_${parsed.data.contact}`]);
+  if (!phone) {
+    res.status(503).send("The store’s WhatsApp contact is not configured. Your order is still saved and visible to the owner in admin.");
+    return;
+  }
+
+  const order = parsed.data;
+  const items = order.items.map((item) =>
+    `${item.quantity} × ${item.productName} — ${item.maxPriceGhs === null ? `GH₵${item.minPriceGhs.toFixed(2)}` : `GH₵${item.minPriceGhs.toFixed(2)}–GH₵${item.maxPriceGhs.toFixed(2)} (confirm exact price)`}`
+  );
+  const message = [
+    `New website cart order #${order.orderNumber} (saved pending)`,
+    `Customer: ${order.fullName}`,
+    `WhatsApp: ${order.phone}`,
+    order.email ? `Email: ${order.email}` : null,
+    `Delivery area: ${order.deliveryArea}`,
+    `Address: ${order.deliveryAddress}`,
+    order.customerNote ? `Note: ${order.customerNote}` : null,
+    "Items:",
+    ...items,
+    "Please confirm availability, exact item prices, and the delivery fee with the customer.",
+  ].filter(Boolean).join("\n");
+  const destination = new URL(`https://wa.me/${phone}`);
+  destination.searchParams.set("text", message);
+  res.redirect(303, destination.toString());
 };
 
 export const handleWhatsAppOrder: RequestHandler = (req, res) => {

@@ -7,6 +7,17 @@ import type { Product } from "@shared/productCatalog";
 
 const formatGhs = (amount: number) => `GH₵${amount.toFixed(2)}`;
 
+type WhatsAppOrder = {
+  orderNumber: number;
+  fullName: string;
+  phone: string;
+  email: string | null;
+  deliveryArea: string;
+  deliveryAddress: string;
+  customerNote: string;
+  items: { productName: string; quantity: number; minPriceGhs: number; maxPriceGhs: number | null }[];
+};
+
 export default function Checkout() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -14,6 +25,7 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [order, setOrder] = useState<{ orderNumber: number; trackingToken: string; minimumSubtotalGhs: number } | null>(null);
+  const [whatsAppOrder, setWhatsAppOrder] = useState<WhatsAppOrder | null>(null);
 
   useEffect(() => {
     setCart(readCart());
@@ -60,6 +72,21 @@ export default function Checkout() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "order_failed");
       setOrder(data);
+      setWhatsAppOrder({
+        orderNumber: data.orderNumber,
+        fullName: String(form.get("fullName")),
+        phone: String(form.get("phone")),
+        email: form.get("email") ? String(form.get("email")) : null,
+        deliveryArea: String(form.get("deliveryArea")),
+        deliveryAddress: String(form.get("deliveryAddress")),
+        customerNote: String(form.get("customerNote") ?? ""),
+        items: cartProducts.map(({ quantity, product }) => ({
+          productName: product!.name,
+          quantity,
+          minPriceGhs: product!.price,
+          maxPriceGhs: product!.maxPrice ?? null,
+        })),
+      });
       writeCart([]);
       setCart([]);
     } catch {
@@ -79,6 +106,7 @@ export default function Checkout() {
             <p className="text-sm leading-6 text-[#667086]">Your order is pending. We’ll confirm the exact variant prices and delivery fee with you on WhatsApp before confirming the order.</p>
             <p className="mt-5 text-sm font-bold">Order #{order.orderNumber}</p>
             <p className="mt-1 text-sm">Minimum item estimate: {formatGhs(order.minimumSubtotalGhs)}</p>
+            {whatsAppOrder && <div className="mt-5 rounded-xl border border-[#e1e6ef] bg-white p-4"><h2 className="font-serif text-lg font-bold">Continue in WhatsApp</h2><p className="mt-1 text-xs leading-5 text-[#69758a]">Your order is saved for the store. Choose a contact to send the order details and confirm exact prices and delivery.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{(["1", "2"] as const).map((contact) => <form key={contact} action="/api/orders/whatsapp/cart" method="post" target="_blank" rel="noopener noreferrer"><input type="hidden" name="contact" value={contact} /><input type="hidden" name="payload" value={JSON.stringify(whatsAppOrder)} /><button className="w-full rounded-full bg-[#4163e8] px-4 py-3 text-sm font-bold text-white">Send to WhatsApp contact {contact}</button></form>)}</div></div>}
             <div className="mt-5 rounded-lg bg-[#eef1f8] p-4">
               <p className="text-xs font-bold uppercase tracking-wide">Save this private tracking code</p>
               <code className="mt-2 block break-all text-xs">{order.trackingToken}</code>

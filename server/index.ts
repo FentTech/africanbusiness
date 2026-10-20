@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { handleDemo } from "./routes/demo";
 import { handleSupportMessage } from "./routes/support";
-import { handleWhatsAppOrder } from "./routes/whatsapp";
+import { handleWhatsAppCartOrder, handleWhatsAppOrder } from "./routes/whatsapp";
 import { handleListOrders } from "./orders";
 
 export function createServer() {
@@ -26,6 +26,7 @@ export function createServer() {
   app.get("/api/demo", handleDemo);
   app.post("/api/support/message", handleSupportMessage);
   app.get("/api/orders/whatsapp", handleWhatsAppOrder);
+  app.post("/api/orders/whatsapp/cart", handleWhatsAppCartOrder);
   app.get("/api/admin/orders", handleListOrders);
 
   return app;
