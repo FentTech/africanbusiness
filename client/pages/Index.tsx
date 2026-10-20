@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown, ArrowRight, Menu, MessageCircle, Play,
-  Search, Share2, Star, Truck, X,
+  Search, Share2, ShoppingBag, Star, Truck, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import { readCart, writeCart } from "@/lib/cart";
 
 import { products as seedProducts, type Product } from "@shared/productCatalog";
-import { supabase } from "@/lib/supabase";
+import { fetchStoreProducts } from "@/lib/storeProducts";
 
 const categories = ["Everything", "Home & living", "Electronics", "Auto parts", "Beauty & personal care"];
 const formatPrice = (amount: number) => `GH₵${amount.toFixed(2)}`;
@@ -26,37 +28,26 @@ export default function Index() {
   const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
   const [galleryIndexes, setGalleryIndexes] = useState<Record<number, number>>({});
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
-    const loadProducts = async () => {
-      const { data, error } = await supabase
-        .from("store_products")
-        .select("*")
-        .eq("active", true)
-        .order("id");
-      if (error) {
-        toast.error("Could not refresh the product catalog");
-        return;
-      }
-      setProducts(data.map((product) => ({
-        id: product.id,
-        name: product.name,
-        subtitle: product.subtitle,
-        price: Number(product.price_ghs),
-        maxPrice: product.max_price_ghs === null ? undefined : Number(product.max_price_ghs),
-        unit: product.unit,
-        minimumOrder: product.minimum_order,
-        category: product.category,
-        location: product.location,
-        image: product.image_url,
-        gallery: product.gallery_urls.length ? product.gallery_urls : undefined,
-        videoUrl: product.video_url ?? "",
-        videoLabel: product.video_label ?? undefined,
-        badge: product.badge ?? undefined,
-        rating: product.rating ?? undefined,
-      })));
-    };
-    void loadProducts();
+    setCartCount(readCart().reduce((count, line) => count + line.quantity, 0));
+  }, []);
+
+  const addToCart = (product: Product) => {
+    const cart = readCart();
+    const existing = cart.find((line) => line.productId === product.id);
+    if (existing) existing.quantity = Math.min(25, existing.quantity + 1);
+    else cart.push({ productId: product.id, quantity: 1 });
+    writeCart(cart);
+    setCartCount(cart.reduce((count, line) => count + line.quantity, 0));
+    toast.success("Added to cart", { description: product.name });
+  };
+
+  useEffect(() => {
+    void fetchStoreProducts().then(setProducts).catch(() => {
+      toast.error("Could not refresh the product catalog");
+    });
   }, []);
 
   const visibleProducts = useMemo(() => products.filter((product) => {
@@ -81,17 +72,29 @@ export default function Index() {
     if (!contactName.trim() || !contactEmail.trim() || !message.trim() || !chatProduct || chatSending) return;
     setChatSending(true);
     try {
-      const response = await fetch("/api/support/message", {
+      const inquiryResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/store-orders`, {
+        method: "POST",
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "inquiry", name: contactName, email: contactEmail, product: chatProduct.name, message }),
+      });
+      if (!inquiryResponse.ok) throw new Error("inquiry_save_failed");
+      const emailResponse = await fetch("/api/support/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: contactName, email: contactEmail, product: chatProduct.name, message }),
       });
-      if (!response.ok) throw new Error("support_delivery_failed");
-      toast.success("Your message was sent", { description: "The store owner can reply to your email." });
+      if (emailResponse.ok) {
+        toast.success("Your message is saved", { description: "The store owner can review it in the admin inbox and reply by email." });
+      } else {
+        toast.success("Your message is saved in the store inbox", { description: "Email notification is temporarily unavailable." });
+      }
       setMessage("");
       setChatProduct(null);
     } catch {
-      toast.error("We couldn’t send your message", { description: "Please try again later or email greatfent1@gmail.com directly." });
+      toast.error("We couldn’t save your message", { description: "Please try again later or email greatfent1@gmail.com directly." });
     } finally {
       setChatSending(false);
     }
@@ -115,6 +118,7 @@ export default function Index() {
             <a href="#how-to" className="transition hover:text-[#4163e8]">Stories & tips</a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
+            <Link to="/checkout" className="relative grid h-10 w-10 place-items-center rounded-full border border-[#e1e6ef] bg-white" aria-label={`Cart, ${cartCount} items`}><ShoppingBag size={17} />{cartCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#4163e8] px-1 text-[10px] font-bold text-white">{cartCount}</span>}</Link>
             <label className="hidden h-10 items-center gap-2 rounded-full border border-[#e1e6ef] bg-white/70 px-3.5 lg:flex">
               <Search size={15} className="text-[#8d9689]" />
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find something lovely" className="w-36 bg-transparent text-xs outline-none placeholder:text-[#9a9d93]" />
@@ -157,7 +161,7 @@ export default function Index() {
         <section id="shop" className="mx-auto max-w-[1320px] scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20">
           <div className="mb-8 flex flex-col justify-between gap-5 sm:mb-10 sm:flex-row sm:items-end"><div><p className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#4163e8]">The goods collection</p><h2 className="font-serif text-[37px] font-bold leading-tight tracking-[-0.045em] text-[#1d2942] sm:text-[45px]">Everyday needs. <span className="italic text-[#4163e8]">Better finds.</span></h2><p className="mt-3 max-w-[460px] text-[13px] leading-6 text-[#778174]">Twenty-one practical picks across home, electronics, automotive and beauty essentials.</p></div><div className="flex h-10 items-center gap-2 self-start rounded-full border border-[#e5ddcf] bg-white px-3 lg:hidden"><Search size={15} className="text-[#8d9689]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products" className="w-36 bg-transparent text-xs outline-none placeholder:text-[#9a9d93]" /></div><a href="#shop" onClick={() => setCategory("Everything")} className="hidden items-center gap-2 pb-1 text-xs font-bold text-[#4163e8] sm:flex">See all 21 finds <ArrowRight size={15} /></a></div>
           <div className="mb-7 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`shrink-0 rounded-full border px-4 py-2.5 text-[11px] font-bold transition ${category === item ? "border-[#293d61] bg-[#293d61] text-white" : "border-[#e6dfd2] bg-transparent text-[#747e72] hover:border-[#9aa28f] hover:text-[#344768]"}`}>{item}</button>)}</div>
-          {visibleProducts.length ? <div className="grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-9 lg:grid-cols-4 lg:gap-x-6">{visibleProducts.map((product) => <article key={product.id} className="group relative min-w-0"><div className="relative aspect-[0.92] overflow-hidden rounded-[5px_34px_5px_5px] bg-[#eee4d2] sm:rounded-[7px_48px_7px_7px]">{product.gallery ? <button onClick={() => setGalleryProduct(product)} className="absolute inset-0 h-full w-full" aria-label={`Open ${product.name} photo gallery`}><img src={product.gallery[galleryIndexes[product.id] ?? 0]} alt={product.name} loading="lazy" className="h-full w-full object-contain p-2" /></button> : <img src={product.image} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-contain p-2" />}{product.badge && <span className="absolute left-3 top-3 rounded-full bg-[#f7f8fc] px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#51624e] shadow-sm">{product.badge}</span>}<button onClick={() => shareProduct(product)} aria-label={`Share ${product.name}`} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[#536051] shadow-sm transition hover:bg-white hover:text-[#4163e8]"><Share2 size={14} /></button><button onClick={() => setVideoProduct(product)} aria-label={`Watch how to use ${product.name}`} className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[#1d2942]/85 px-3 py-2 text-[9px] font-bold text-white backdrop-blur-sm transition hover:bg-[#4163e8]"><Play size={11} fill="currentColor" /> {product.videoUrl ? "VIDEO DEMO" : "HOW IT’S MADE"}</button></div>{product.gallery && <div className="mt-1.5 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">{product.gallery.map((image, imageIndex) => <button key={image} onClick={() => setGalleryIndexes((current) => ({ ...current, [product.id]: imageIndex }))} className={`h-7 w-7 shrink-0 overflow-hidden rounded border-2 ${imageIndex === (galleryIndexes[product.id] ?? 0) ? "border-[#4163e8]" : "border-transparent"}`} aria-label={`Show photo ${imageIndex + 1} of ${product.name}`}><img src={image} alt="" loading="lazy" className="h-full w-full object-contain" /></button>)}</div>}<div className="px-0.5 pt-3"><div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a07b42]">{product.category}</span>{product.rating ? <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#536051]"><Star size={11} fill="#e5a644" stroke="#e5a644" />{product.rating}</span> : <span className="shrink-0 text-[9px] font-bold text-[#7e8577]">Supplier listed</span>}</div><h3 className="font-serif text-[15px] font-bold leading-[1.2] tracking-[-0.02em] text-[#243a2c] sm:text-[18px]">{product.name}</h3><p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] leading-[1.55] text-[#83877c] sm:text-[11px]">{product.subtitle}</p><p className="mt-1.5 text-[9px] text-[#929489]">{product.location}</p><div className="mt-3 flex items-center justify-between gap-1 border-t border-[#e9e2d7] pt-2.5"><div><span className="font-serif text-[16px] font-bold text-[#243a2c] sm:text-[18px]">{formatProductPrice(product)}</span><span className="ml-1 text-[9px] text-[#99998d]">/{product.unit}</span></div><button onClick={() => setWhatsappProduct(product)} aria-label={`Buy ${product.name} on WhatsApp`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#4163e8] px-4 text-[11px] font-bold text-white transition hover:bg-[#304fc7]"><MessageCircle size={13} /> Buy</button></div><button onClick={() => setChatProduct(product)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#7c8678] transition hover:text-[#4163e8]"><MessageCircle size={12} /> Ask about this item</button></div></article>)}</div> : <div className="rounded-2xl border border-dashed border-[#ddd4c5] px-6 py-14 text-center text-sm text-[#7d857b]">Nothing on this shelf just yet. Try another search or category.</div>}
+          {visibleProducts.length ? <div className="grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-9 lg:grid-cols-4 lg:gap-x-6">{visibleProducts.map((product) => <article key={product.id} className="group relative min-w-0"><div className="relative aspect-[0.92] overflow-hidden rounded-[5px_34px_5px_5px] bg-[#eee4d2] sm:rounded-[7px_48px_7px_7px]">{product.gallery ? <button onClick={() => setGalleryProduct(product)} className="absolute inset-0 h-full w-full" aria-label={`Open ${product.name} photo gallery`}><img src={product.gallery[galleryIndexes[product.id] ?? 0]} alt={product.name} loading="lazy" className="h-full w-full object-contain p-2" /></button> : <img src={product.image} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-contain p-2" />}{product.badge && <span className="absolute left-3 top-3 rounded-full bg-[#f7f8fc] px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#51624e] shadow-sm">{product.badge}</span>}<button onClick={() => shareProduct(product)} aria-label={`Share ${product.name}`} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-[#536051] shadow-sm transition hover:bg-white hover:text-[#4163e8]"><Share2 size={14} /></button><button onClick={() => setVideoProduct(product)} aria-label={`Watch how to use ${product.name}`} className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-[#1d2942]/85 px-3 py-2 text-[9px] font-bold text-white backdrop-blur-sm transition hover:bg-[#4163e8]"><Play size={11} fill="currentColor" /> {product.videoUrl ? "VIDEO DEMO" : "HOW IT’S MADE"}</button></div>{product.gallery && <div className="mt-1.5 flex gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">{product.gallery.map((image, imageIndex) => <button key={image} onClick={() => setGalleryIndexes((current) => ({ ...current, [product.id]: imageIndex }))} className={`h-7 w-7 shrink-0 overflow-hidden rounded border-2 ${imageIndex === (galleryIndexes[product.id] ?? 0) ? "border-[#4163e8]" : "border-transparent"}`} aria-label={`Show photo ${imageIndex + 1} of ${product.name}`}><img src={image} alt="" loading="lazy" className="h-full w-full object-contain" /></button>)}</div>}<div className="px-0.5 pt-3"><div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a07b42]">{product.category}</span>{product.rating ? <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#536051]"><Star size={11} fill="#e5a644" stroke="#e5a644" />{product.rating}</span> : <span className="shrink-0 text-[9px] font-bold text-[#7e8577]">Supplier listed</span>}</div><h3 className="font-serif text-[15px] font-bold leading-[1.2] tracking-[-0.02em] text-[#243a2c] sm:text-[18px]">{product.name}</h3><p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] leading-[1.55] text-[#83877c] sm:text-[11px]">{product.subtitle}</p><p className="mt-1.5 text-[9px] text-[#929489]">{product.location}</p><div className="mt-3 flex items-center justify-between gap-1 border-t border-[#e9e2d7] pt-2.5"><div><span className="font-serif text-[16px] font-bold text-[#243a2c] sm:text-[18px]">{formatProductPrice(product)}</span><span className="ml-1 text-[9px] text-[#99998d]">/{product.unit}</span></div><button onClick={() => addToCart(product)} aria-label={`Add ${product.name} to cart`} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#4163e8] px-4 text-[11px] font-bold text-white transition hover:bg-[#304fc7]"><ShoppingBag size={13} /> Add</button></div><button onClick={() => setChatProduct(product)} className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#7c8678] transition hover:text-[#4163e8]"><MessageCircle size={12} /> Ask about this item</button></div></article>)}</div> : <div className="rounded-2xl border border-dashed border-[#ddd4c5] px-6 py-14 text-center text-sm text-[#7d857b]">Nothing on this shelf just yet. Try another search or category.</div>}
         </section>
 
         <section id="makers" className="scroll-mt-24 bg-[#293d61] text-[#fff9ec]">
