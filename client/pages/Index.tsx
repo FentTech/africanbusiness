@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDown, ArrowRight, Menu, MessageCircle, Play,
   Search, Share2, ShieldCheck, ShoppingBag, Star, Truck, X,
@@ -50,11 +50,11 @@ export default function Index() {
     });
   }, []);
 
-  const visibleProducts = useMemo(() => products.filter((product) => {
+  const visibleProducts = products.filter((product) => {
     const matchesCategory = category === "Everything" || product.category === category;
     const matchesSearch = `${product.name} ${product.subtitle} ${product.location}`.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
-  }), [category, search]);
+  });
   const shareProduct = async (product: Product) => {
     const shareData = { title: product.name, text: `${product.name} — ${formatProductPrice(product)} per ${product.unit} at Akwaaba Goods`, url: window.location.href };
     try {
