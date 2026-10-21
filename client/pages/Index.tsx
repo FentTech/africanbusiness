@@ -45,7 +45,9 @@ export default function Index() {
   };
 
   useEffect(() => {
-    void fetchStoreProducts().then(setProducts).catch(() => {
+    void fetchStoreProducts().then((catalog) => {
+      if (catalog.length > 0) setProducts(catalog);
+    }).catch(() => {
       toast.error("Could not refresh the product catalog");
     });
   }, []);

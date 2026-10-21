@@ -1,5 +1,6 @@
 import "./global.css";
 
+import { Component, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { createRoot } from "react-dom/client";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -15,7 +16,27 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("Storefront render failed", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <main className="grid min-h-screen place-items-center bg-[#f7f8fc] px-6 text-center text-[#1d2942]"><div><h1 className="font-serif text-3xl font-bold">Akwaaba Goods</h1><p className="mt-3 text-sm">The page could not load. Please refresh to try again.</p><button onClick={() => window.location.reload()} className="mt-5 rounded-full bg-[#4163e8] px-5 py-3 text-sm font-bold text-white">Refresh page</button></div></main>;
+    }
+    return this.props.children;
+  }
+}
+
 const App = () => (
+  <AppErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -33,6 +54,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </AppErrorBoundary>
 );
 
 createRoot(document.getElementById("root")!).render(<App />);
