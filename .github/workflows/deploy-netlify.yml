@@ -1,0 +1,51 @@
+name: Deploy production to Netlify
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: netlify-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
+      WHATSAPP_ORDER_NUMBER_1: ${{ secrets.WHATSAPP_ORDER_NUMBER_1 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Validate deployment secrets
+        run: |
+          for key in NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_SITE_URL WHATSAPP_ORDER_NUMBER_1; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing GitHub Actions secret: $key"
+              exit 1
+            fi
+          done
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Deploy to Netlify
+        run: |
+          npm install --global netlify-cli
+          netlify env:set WHATSAPP_ORDER_NUMBER_1 "$WHATSAPP_ORDER_NUMBER_1" --site "$NETLIFY_SITE_ID" --context production
+          netlify deploy --prod --dir=dist/spa --functions=netlify/functions --site "$NETLIFY_SITE_ID"
