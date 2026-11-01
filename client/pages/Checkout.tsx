@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, LoaderCircle, ShoppingBag } from "lucide-react";
 import { fetchStoreProducts } from "@/lib/storeProducts";
+import { supabase } from "@/lib/supabase";
 import { readCart, writeCart, type CartLine } from "@/lib/cart";
 import type { Product } from "@shared/productCatalog";
 
@@ -9,18 +10,20 @@ const formatGhs = (amount: number) => `GH₵${amount.toFixed(2)}`;
 
 type WhatsAppOrder = {
   orderNumber: number;
-  fullName: string;
-  phone: string;
-  email: string | null;
-  deliveryArea: string;
-  deliveryAddress: string;
-  customerNote: string;
-  items: { productName: string; quantity: number; minPriceGhs: number; maxPriceGhs: number | null }[];
+  trackingToken: string;
+};
+
+type DeliveryZone = {
+  id: string;
+  name: string;
+  fee_ghs: number;
 };
 
 export default function Checkout() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [selectedDeliveryZoneId, setSelectedDeliveryZoneId] = useState("");
   const [catalogReady, setCatalogReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +32,17 @@ export default function Checkout() {
 
   useEffect(() => {
     setCart(readCart());
-    void fetchStoreProducts().then(setProducts).catch(() => {
+    void Promise.all([
+      fetchStoreProducts(),
+      supabase.from("store_delivery_zones").select("id,name,fee_ghs").eq("active", true).order("name"),
+    ]).then(([catalog, zones]) => {
+      setProducts(catalog);
+      if (!zones.error) {
+        const activeZones = (zones.data ?? []).map((zone) => ({ ...zone, fee_ghs: Number(zone.fee_ghs) }));
+        setDeliveryZones(activeZones);
+        setSelectedDeliveryZoneId(activeZones[0]?.id ?? "");
+      }
+    }).catch(() => {
       setError("Product details are temporarily unavailable.");
     }).finally(() => setCatalogReady(true));
   }, []);
@@ -39,6 +52,7 @@ export default function Checkout() {
     product: products.find((product) => product.id === line.productId),
   })).filter((line) => line.product), [cart, products]);
   const minimumSubtotal = cartProducts.reduce((total, line) => total + line.product!.price * line.quantity, 0);
+  const selectedDeliveryZone = deliveryZones.find((zone) => zone.id === selectedDeliveryZoneId);
 
   const updateQuantity = (productId: number, quantity: number) => {
     const next = cart.map((line) => line.productId === productId ? { ...line, quantity } : line).filter((line) => line.quantity > 0);
@@ -63,7 +77,8 @@ export default function Checkout() {
           fullName: form.get("fullName"),
           phone: form.get("phone"),
           email: form.get("email") || null,
-          deliveryArea: form.get("deliveryArea"),
+          deliveryArea: selectedDeliveryZone?.name ?? form.get("deliveryArea"),
+          deliveryZoneId: selectedDeliveryZone?.id,
           deliveryAddress: form.get("deliveryAddress"),
           customerNote: form.get("customerNote") || "",
           items: cartProducts.map(({ productId, quantity }) => ({ productId, quantity })),
@@ -74,18 +89,7 @@ export default function Checkout() {
       setOrder(data);
       setWhatsAppOrder({
         orderNumber: data.orderNumber,
-        fullName: String(form.get("fullName")),
-        phone: String(form.get("phone")),
-        email: form.get("email") ? String(form.get("email")) : null,
-        deliveryArea: String(form.get("deliveryArea")),
-        deliveryAddress: String(form.get("deliveryAddress")),
-        customerNote: String(form.get("customerNote") ?? ""),
-        items: cartProducts.map(({ quantity, product }) => ({
-          productName: product!.name,
-          quantity,
-          minPriceGhs: product!.price,
-          maxPriceGhs: product!.maxPrice ?? null,
-        })),
+        trackingToken: data.trackingToken,
       });
       writeCart([]);
       setCart([]);
@@ -106,7 +110,7 @@ export default function Checkout() {
             <p className="text-sm leading-6 text-[#667086]">Your order is pending. We’ll confirm the exact variant prices and delivery fee with you on WhatsApp before confirming the order.</p>
             <p className="mt-5 text-sm font-bold">Order #{order.orderNumber}</p>
             <p className="mt-1 text-sm">Minimum item estimate: {formatGhs(order.minimumSubtotalGhs)}</p>
-            {whatsAppOrder && <div className="mt-5 rounded-xl border border-[#e1e6ef] bg-white p-4"><h2 className="font-serif text-lg font-bold">Continue in WhatsApp</h2><p className="mt-1 text-xs leading-5 text-[#69758a]">Your order is saved for the store. Choose a contact to send the order details and confirm exact prices and delivery.</p><div className="mt-3"><form action="/api/orders/whatsapp/cart" method="post" target="_blank" rel="noopener noreferrer"><input type="hidden" name="contact" value="1" /><input type="hidden" name="payload" value={JSON.stringify(whatsAppOrder)} /><button className="w-full rounded-full bg-[#4163e8] px-4 py-3 text-sm font-bold text-white">Send order via WhatsApp</button></form></div></div>}
+            {whatsAppOrder && <div className="mt-5 rounded-xl border border-[#e1e6ef] bg-white p-4"><h2 className="font-serif text-lg font-bold">Continue in WhatsApp</h2><p className="mt-1 text-xs leading-5 text-[#69758a]">Your saved order details will be securely loaded for WhatsApp.</p><div className="mt-3"><form action="/api/orders/whatsapp/cart" method="post" target="_blank" rel="noopener noreferrer"><input type="hidden" name="contact" value="1" /><input type="hidden" name="payload" value={JSON.stringify(whatsAppOrder)} /><button className="w-full rounded-full bg-[#4163e8] px-4 py-3 text-sm font-bold text-white">Send order via WhatsApp</button></form></div></div>}
             <div className="mt-5 rounded-lg bg-[#eef1f8] p-4">
               <p className="text-xs font-bold uppercase tracking-wide">Save this private tracking code</p>
               <code className="mt-2 block break-all text-xs">{order.trackingToken}</code>
@@ -143,7 +147,8 @@ export default function Checkout() {
                 ))}
               </div>
               <div className="border-t border-[#e8ebf1] pt-4 text-sm font-bold">Minimum item estimate <span className="float-right">{formatGhs(minimumSubtotal)}</span></div>
-              <p className="mt-2 text-xs leading-5 text-[#6d778c]">Some items have variable prices. Delivery and exact prices are confirmed on WhatsApp; this estimate is not a final total.</p>
+              {selectedDeliveryZone && <p className="mt-2 text-xs">Delivery to {selectedDeliveryZone.name}: {formatGhs(selectedDeliveryZone.fee_ghs)}</p>}
+              <p className="mt-2 text-xs leading-5 text-[#6d778c]">Some items have variable prices. {selectedDeliveryZone ? "Exact product prices are confirmed on WhatsApp." : "Delivery and exact prices are confirmed on WhatsApp."} This estimate is not a final total.</p>
             </section>
 
             <form onSubmit={submitOrder} className="space-y-3 rounded-2xl border border-[#e1e6ef] bg-white p-5">
@@ -151,7 +156,7 @@ export default function Checkout() {
               <label className="block text-xs font-semibold">Full name<input name="fullName" required maxLength={100} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
               <label className="block text-xs font-semibold">WhatsApp phone<input name="phone" required type="tel" minLength={8} maxLength={24} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
               <label className="block text-xs font-semibold">Email (optional)<input name="email" type="email" maxLength={254} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
-              <label className="block text-xs font-semibold">Town, city or delivery area<input name="deliveryArea" required maxLength={100} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
+              {deliveryZones.length ? <label className="block text-xs font-semibold">Delivery area<select name="deliveryZoneId" required value={selectedDeliveryZoneId} onChange={(event) => setSelectedDeliveryZoneId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm">{deliveryZones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} · {formatGhs(zone.fee_ghs)} delivery</option>)}</select></label> : <label className="block text-xs font-semibold">Town, city or delivery area<input name="deliveryArea" required maxLength={100} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>}
               <label className="block text-xs font-semibold">Delivery address<input name="deliveryAddress" required minLength={5} maxLength={500} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
               <label className="block text-xs font-semibold">Order note (optional)<textarea name="customerNote" maxLength={1000} rows={3} className="mt-1.5 w-full rounded-lg border border-[#dbe0e9] px-3 py-2.5 text-sm" /></label>
               {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}

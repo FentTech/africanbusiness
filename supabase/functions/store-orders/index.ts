@@ -62,7 +62,7 @@ Deno.serve(async (request) => {
       !validItems
     ) return json(400, { error: "invalid_order" });
 
-    const { data, error } = await supabase.rpc("place_store_order", {
+    const orderArguments = {
       p_full_name: payload.fullName,
       p_email: payload.email ?? null,
       p_phone: payload.phone,
@@ -70,7 +70,22 @@ Deno.serve(async (request) => {
       p_delivery_address: payload.deliveryAddress,
       p_customer_note: payload.customerNote ?? "",
       p_items: items,
-    });
+    };
+    const deliveryZoneId = payload.deliveryZoneId;
+    if (deliveryZoneId !== undefined && (typeof deliveryZoneId !== "string" || !/^[0-9a-f-]{36}$/i.test(deliveryZoneId))) {
+      return json(400, { error: "invalid_delivery_zone" });
+    }
+    const { data, error } = deliveryZoneId
+      ? await supabase.rpc("place_store_order_with_zone", {
+          p_full_name: orderArguments.p_full_name,
+          p_email: orderArguments.p_email,
+          p_phone: orderArguments.p_phone,
+          p_delivery_address: orderArguments.p_delivery_address,
+          p_customer_note: orderArguments.p_customer_note,
+          p_items: orderArguments.p_items,
+          p_delivery_zone_id: deliveryZoneId,
+        })
+      : await supabase.rpc("place_store_order", orderArguments);
     if (error) return json(400, { error: "order_could_not_be_created" });
     return json(201, data);
   }
@@ -95,6 +110,38 @@ Deno.serve(async (request) => {
     }).select("id").single();
     if (error) return json(503, { error: "inquiry_unavailable" });
     return json(201, { saved: true, inquiryId: data.id });
+  }
+
+  if (payload.action === "handoff") {
+    const orderNumber = Number(payload.orderNumber);
+    const trackingToken = payload.trackingToken;
+    if (!Number.isSafeInteger(orderNumber) || orderNumber < 1 || typeof trackingToken !== "string" || !/^[a-f0-9]{64}$/.test(trackingToken)) {
+      return json(400, { error: "invalid_order_credentials" });
+    }
+    const { data, error } = await supabase
+      .from("store_orders")
+      .select("order_number,delivery_area,delivery_address,customer_note,store_customers(full_name,email,phone),store_order_items(product_name_snapshot,quantity,quoted_min_price_ghs,quoted_max_price_ghs)")
+      .eq("order_number", orderNumber)
+      .eq("tracking_token_hash", await sha256Hex(trackingToken))
+      .maybeSingle();
+    if (error) return json(503, { error: "order_unavailable" });
+    if (!data) return json(404, { error: "order_not_found" });
+    const customer = Array.isArray(data.store_customers) ? data.store_customers[0] : data.store_customers;
+    return json(200, {
+      orderNumber: data.order_number,
+      fullName: customer.full_name,
+      phone: customer.phone,
+      email: customer.email,
+      deliveryArea: data.delivery_area,
+      deliveryAddress: data.delivery_address,
+      customerNote: data.customer_note,
+      items: data.store_order_items.map((item) => ({
+        productName: item.product_name_snapshot,
+        quantity: item.quantity,
+        minPriceGhs: item.quoted_min_price_ghs,
+        maxPriceGhs: item.quoted_max_price_ghs,
+      })),
+    });
   }
 
   if (payload.action === "track") {

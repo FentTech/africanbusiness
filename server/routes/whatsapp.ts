@@ -11,18 +11,23 @@ const orderQuerySchema = z.object({
 const cartOrderSchema = z.object({
   contact: z.enum(["1", "2"]),
   orderNumber: z.number().int().positive(),
-  fullName: z.string().trim().min(1).max(100),
-  phone: z.string().trim().min(8).max(24),
-  email: z.string().email().max(254).nullable(),
-  deliveryArea: z.string().trim().min(1).max(100),
-  deliveryAddress: z.string().trim().min(5).max(500),
-  customerNote: z.string().max(1000),
+  trackingToken: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+const savedOrderSchema = z.object({
+  orderNumber: z.number().int().positive(),
+  fullName: z.string(),
+  phone: z.string(),
+  email: z.string().nullable(),
+  deliveryArea: z.string(),
+  deliveryAddress: z.string(),
+  customerNote: z.string(),
   items: z.array(z.object({
-    productName: z.string().min(1).max(160),
-    quantity: z.number().int().min(1).max(25),
+    productName: z.string(),
+    quantity: z.number().int().positive(),
     minPriceGhs: z.number().nonnegative(),
     maxPriceGhs: z.number().nonnegative().nullable(),
-  })).min(1).max(20),
+  })).min(1),
 });
 
 const normalizePhone = (value: string | undefined) => {
@@ -30,7 +35,7 @@ const normalizePhone = (value: string | undefined) => {
   return value.replace(/^\+/, "").replace(/^00/, "");
 };
 
-export const handleWhatsAppCartOrder: RequestHandler = (req, res) => {
+export const handleWhatsAppCartOrder: RequestHandler = async (req, res) => {
   let payload = req.body;
   if (typeof req.body?.payload === "string") {
     try {
@@ -46,13 +51,42 @@ export const handleWhatsAppCartOrder: RequestHandler = (req, res) => {
     return;
   }
 
-  const phone = normalizePhone(process.env[`WHATSAPP_ORDER_NUMBER_${parsed.data.contact}`]);
+  const phone = normalizePhone(process.env[`WHATSAPP_ORDER_NUMBER_${parsed.data.contact}`])
+    ?? normalizePhone(process.env.WHATSAPP_ORDER_NUMBER_1);
   if (!phone) {
     res.status(503).send("The store’s WhatsApp contact is not configured. Your order is still saved and visible to the owner in admin.");
     return;
   }
 
-  const order = parsed.data;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const publishableKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl || !publishableKey) {
+    res.status(503).send("Order handoff is temporarily unavailable. Your order is saved and visible to the owner.");
+    return;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/store-orders`, {
+      method: "POST",
+      headers: { apikey: publishableKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "handoff", orderNumber: parsed.data.orderNumber, trackingToken: parsed.data.trackingToken }),
+    });
+  } catch {
+    res.status(503).send("Order handoff is temporarily unavailable. Your order is saved and visible to the owner.");
+    return;
+  }
+  if (!response.ok) {
+    res.status(response.status === 404 ? 404 : 503).send("The saved order could not be verified. It remains visible to the owner.");
+    return;
+  }
+  const savedOrder = savedOrderSchema.safeParse(await response.json());
+  if (!savedOrder.success) {
+    res.status(503).send("Order handoff is temporarily unavailable. Your order is saved and visible to the owner.");
+    return;
+  }
+
+  const order = savedOrder.data;
   const items = order.items.map((item) =>
     `${item.quantity} × ${item.productName} — ${item.maxPriceGhs === null ? `GH₵${item.minPriceGhs.toFixed(2)}` : `GH₵${item.minPriceGhs.toFixed(2)}–GH₵${item.maxPriceGhs.toFixed(2)} (confirm exact price)`}`
   );

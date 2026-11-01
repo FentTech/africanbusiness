@@ -15,6 +15,13 @@ type AdminProduct = {
   quantity_on_hand: number | null;
 };
 
+type DeliveryZone = {
+  id: string;
+  name: string;
+  fee_ghs: number;
+  active: boolean;
+};
+
 export default function AdminDashboard() {
   const [email, setEmail] = useState("");
   const [session, setSession] = useState<any>(null);
@@ -24,6 +31,9 @@ export default function AdminDashboard() {
   const [sendingLoginLink, setSendingLoginLink] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [zoneName, setZoneName] = useState("");
+  const [zoneFee, setZoneFee] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
 
@@ -47,7 +57,11 @@ export default function AdminDashboard() {
       .from("store_inquiries")
       .select("*")
       .order("created_at", { ascending: false });
-    if (productError || orderError || inquiryError) {
+    const { data: zoneRows, error: zoneError } = await supabase
+      .from("store_delivery_zones")
+      .select("id,name,fee_ghs,active")
+      .order("name");
+    if (productError || orderError || inquiryError || zoneError) {
       setMessage("Could not load store records. Check your admin permissions.");
       return;
     }
@@ -61,6 +75,7 @@ export default function AdminDashboard() {
     })));
     setOrders(orderRows ?? []);
     setInquiries(inquiryRows ?? []);
+    setDeliveryZones((zoneRows ?? []).map((zone) => ({ ...zone, fee_ghs: Number(zone.fee_ghs) })));
   }, []);
 
   useEffect(() => {
@@ -179,6 +194,35 @@ export default function AdminDashboard() {
     await loadDashboard();
   };
 
+  const addDeliveryZone = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const fee = Number(zoneFee);
+    if (!zoneName.trim() || !Number.isFinite(fee) || fee < 0) {
+      setMessage("Enter a delivery area and a valid non-negative fee.");
+      return;
+    }
+    const { error } = await supabase.from("store_delivery_zones").insert({ name: zoneName.trim(), fee_ghs: fee });
+    if (error) {
+      setMessage("Could not save delivery zone. Check that its name is unique.");
+      return;
+    }
+    setZoneName("");
+    setZoneFee("");
+    setMessage("Delivery zone added.");
+    await loadDashboard();
+  };
+
+  const saveDeliveryZone = async (zone: DeliveryZone) => {
+    const { error } = await supabase.from("store_delivery_zones").update({
+      name: zone.name.trim(),
+      fee_ghs: zone.fee_ghs,
+      active: zone.active,
+      updated_at: new Date().toISOString(),
+    }).eq("id", zone.id);
+    setMessage(error ? "Could not save delivery zone." : "Delivery zone saved.");
+    if (!error) await loadDashboard();
+  };
+
   const updateInquiry = async (inquiryId: number, status: string) => {
     const { error } = await supabase.from("store_inquiries").update({ status, updated_at: new Date().toISOString() }).eq("id", inquiryId);
     if (error) {
@@ -208,6 +252,7 @@ export default function AdminDashboard() {
         ) : !authorized ? <p className="mt-8 rounded-xl border border-[#e1e6ef] bg-white p-6">This signed-in account is not authorized to manage the store.</p> : (
           <div className="mt-8 space-y-10">
             <section><h2 className="font-serif text-2xl font-bold">Products and inventory</h2><p className="mt-1 text-sm text-[#69758a]">Blank stock means inventory has not been entered yet.</p><div className="mt-4 grid gap-3">{products.map((product) => <ProductEditor key={product.id} product={product} onChange={(next) => setProducts((current) => current.map((item) => item.id === next.id ? next : item))} onSave={saveProduct} />)}</div></section>
+            <section><h2 className="font-serif text-2xl font-bold">Delivery zones</h2><p className="mt-1 text-sm text-[#69758a]">Set the available areas and delivery fees shown at checkout.</p><form onSubmit={addDeliveryZone} className="mt-4 flex flex-wrap gap-2 rounded-xl border border-[#e1e6ef] bg-white p-4"><input required maxLength={100} value={zoneName} onChange={(event) => setZoneName(event.target.value)} placeholder="Area name" className="min-w-40 flex-1 rounded-lg border px-3 py-2 text-sm" /><input required type="number" min="0" step="0.01" value={zoneFee} onChange={(event) => setZoneFee(event.target.value)} placeholder="Fee GH₵" className="w-32 rounded-lg border px-3 py-2 text-sm" /><button className="rounded-full bg-[#4163e8] px-4 py-2 text-sm font-bold text-white">Add zone</button></form><div className="mt-3 grid gap-3">{deliveryZones.map((zone) => <DeliveryZoneEditor key={zone.id} zone={zone} onSave={saveDeliveryZone} />)}{deliveryZones.length === 0 && <p className="rounded-xl border border-[#e1e6ef] bg-white p-4 text-sm">No delivery zones yet. Add the areas and fees you serve.</p>}</div></section>
             <section><h2 className="font-serif text-2xl font-bold">Orders, delivery and payments</h2><p className="mt-1 text-sm text-[#69758a]">No online payments are collected; record the payment status after confirming with the customer.</p><div className="mt-4 grid gap-4">{orders.length === 0 ? <p className="rounded-xl border border-[#e1e6ef] bg-white p-5 text-sm">No orders yet.</p> : orders.map((order) => <OrderEditor key={order.id} order={order} onSave={updateOrder} />)}</div></section>
             <section><h2 className="font-serif text-2xl font-bold">Website inquiries</h2><div className="mt-4 grid gap-4">{inquiries.length === 0 ? <p className="rounded-xl border border-[#e1e6ef] bg-white p-5 text-sm">No inquiries yet.</p> : inquiries.map((inquiry) => <InquiryCard key={inquiry.id} inquiry={inquiry} onStatusChange={updateInquiry} />)}</div></section>
           </div>
@@ -215,6 +260,11 @@ export default function AdminDashboard() {
       </div>
     </main>
   );
+}
+
+function DeliveryZoneEditor({ zone, onSave }: { zone: DeliveryZone; onSave: (zone: DeliveryZone) => void }) {
+  const [draft, setDraft] = useState(zone);
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e1e6ef] bg-white p-4"><input maxLength={100} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="min-w-40 flex-1 rounded-lg border px-3 py-2 text-sm" /><label className="flex items-center gap-2 text-xs font-semibold">Fee GH₵<input type="number" min="0" step="0.01" value={draft.fee_ghs} onChange={(event) => setDraft({ ...draft, fee_ghs: Number(event.target.value) })} className="w-28 rounded-lg border px-3 py-2 text-sm" /></label><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.active} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} /> Active at checkout</label><button onClick={() => onSave(draft)} className="rounded-full bg-[#4163e8] px-4 py-2 text-xs font-bold text-white">Save</button></div>;
 }
 
 function ProductEditor({ product, onChange, onSave }: { product: AdminProduct; onChange: (product: AdminProduct) => void; onSave: (product: AdminProduct) => void }) {

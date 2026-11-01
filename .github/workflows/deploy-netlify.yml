@@ -19,9 +19,9 @@ jobs:
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
       NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-      VITE_SITE_URL: ${{ secrets.VITE_SITE_URL }}
+      VITE_SUPABASE_URL: https://wmzvzmldgwrpanvrtcvl.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ESb6Giuh8yes2iKh3K5Ueg_M0JzBP5n
+      VITE_SITE_URL: https://akwaaba.world
       WHATSAPP_ORDER_NUMBER_1: ${{ secrets.WHATSAPP_ORDER_NUMBER_1 }}
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
           cache: pnpm
       - name: Validate deployment secrets
         run: |
-          for key in NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY VITE_SITE_URL WHATSAPP_ORDER_NUMBER_1; do
+          for key in NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID WHATSAPP_ORDER_NUMBER_1; do
             if [ -z "${!key}" ]; then
               echo "::error::Missing GitHub Actions secret: $key"
               exit 1
@@ -45,5 +45,8 @@ jobs:
       - name: Deploy to Netlify
         run: |
           npm install --global netlify-cli
+          netlify env:set VITE_SUPABASE_URL "$VITE_SUPABASE_URL" --site "$NETLIFY_SITE_ID" --context production
+          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$VITE_SUPABASE_PUBLISHABLE_KEY" --site "$NETLIFY_SITE_ID" --context production
+          netlify env:set VITE_SITE_URL "$VITE_SITE_URL" --site "$NETLIFY_SITE_ID" --context production
           netlify env:set WHATSAPP_ORDER_NUMBER_1 "$WHATSAPP_ORDER_NUMBER_1" --site "$NETLIFY_SITE_ID" --context production
           netlify deploy --prod --dir=dist/spa --functions=netlify/functions --site "$NETLIFY_SITE_ID"

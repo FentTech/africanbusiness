@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@shared/productCatalog";
+import { localProductMedia } from "@shared/productMedia";
 
 export async function fetchStoreProducts(): Promise<Product[]> {
   const { data, error } = await supabase
@@ -18,9 +19,9 @@ export async function fetchStoreProducts(): Promise<Product[]> {
     minimumOrder: product.minimum_order,
     category: product.category,
     location: product.location,
-    image: product.image_url,
-    gallery: product.gallery_urls.length ? product.gallery_urls : undefined,
-    videoUrl: product.video_url ?? "",
+    image: localProductMedia[product.image_url] ?? product.image_url,
+    gallery: product.gallery_urls.length ? product.gallery_urls.map((image) => localProductMedia[image] ?? image) : undefined,
+    videoUrl: product.video_url ? localProductMedia[product.video_url] ?? product.video_url : "",
     videoLabel: product.video_label ?? undefined,
     badge: product.badge ?? undefined,
     rating: product.rating ?? undefined,
