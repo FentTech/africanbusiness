@@ -91,6 +91,18 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    const authParams = new URLSearchParams(window.location.hash.slice(1));
+    const errorCode = authParams.get("error_code");
+    const errorDescription = authParams.get("error_description");
+    if (!errorCode && !errorDescription) return;
+
+    setMessage(errorCode === "otp_expired"
+      ? "This sign-in link has expired or was already used. Request a new link."
+      : errorDescription || "Supabase could not verify this sign-in link. Request a new one.");
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }, []);
+
+  useEffect(() => {
     const checkAdmin = async () => {
       if (!session?.user?.id) {
         setAuthorized(false);
@@ -119,7 +131,7 @@ export default function AdminDashboard() {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: adminEmail,
-        options: { shouldCreateUser: false, emailRedirectTo: `${import.meta.env.VITE_SITE_URL || window.location.origin}/admin` },
+        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/admin` },
       });
       if (!error) {
         setCooldownSeconds(60);
@@ -135,7 +147,7 @@ export default function AdminDashboard() {
           ? "Supabase’s email sending quota has been reached. Wait for the cooldown, or configure custom SMTP in Supabase Authentication settings."
           : `Supabase is temporarily limiting email requests. Wait ${seconds} seconds, then retry. Check your inbox for the link already sent.`);
       } else {
-        setMessage("Could not send the sign-in link. Please check the email provider settings and try again.");
+        setMessage(`Supabase could not send the sign-in link: ${error.message}`);
       }
     } catch {
       setMessage("Could not reach Supabase Auth. Check your connection and try again.");
